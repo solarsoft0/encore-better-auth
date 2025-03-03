@@ -1,0 +1,76 @@
+name: CI
+
+on: 
+    pull_request:  
+        types: 
+          - opened
+          - synchronize
+    push:
+      branches:
+        - main
+        - 'v**'
+    merge_group: {}
+
+jobs:
+    test:
+        runs-on: ubuntu-latest
+        steps:
+            - uses: actions/checkout@v4
+              with:
+                    fetch-depth: 0
+
+            - name: Cache turbo build setup
+              uses: actions/cache@v4
+              with:
+                path: .turbo
+                key: ${{ runner.os }}-turbo-${{ github.sha }}
+                restore-keys: |
+                  ${{ runner.os }}-turbo-
+
+            - uses: pnpm/action-setup@v4
+
+            - uses: actions/setup-node@v4
+              with:
+                node-version: 20.x
+                registry-url: 'https://registry.npmjs.org'
+                cache: pnpm
+            
+            - name: Install
+              run: pnpm install
+
+            - name: Build
+              env:
+                TURBO_TOKEN: ${{ secrets.TURBO_TOKEN }}
+                TURBO_TEAM: ${{ vars.TURBO_TEAM || github.repository_owner }}
+                TURBO_REMOTE_ONLY: true
+              run: pnpm build
+            
+            - name: Start Docker Containers
+              run: |
+                docker compose up -d
+                # Wait for services to be ready (optional)
+                sleep 10
+            
+            - name: Lint
+              env:
+                TURBO_TOKEN: ${{ secrets.TURBO_TOKEN }}
+                TURBO_TEAM: ${{ vars.TURBO_TEAM || github.repository_owner }}
+                TURBO_REMOTE_ONLY: true
+              run: pnpm lint
+            
+            - name: Test
+              env:
+                TURBO_TOKEN: ${{ secrets.TURBO_TOKEN }}
+                TURBO_TEAM: ${{ vars.TURBO_TEAM || github.repository_owner }}
+              run: pnpm test
+
+            - name: Typecheck
+              env:
+                TURBO_TOKEN: ${{ secrets.TURBO_TOKEN }}
+                TURBO_TEAM: ${{ vars.TURBO_TEAM || github.repository_owner }}
+                TURBO_REMOTE_ONLY: true
+              run: pnpm typecheck
+
+            - name: Stop Docker Containers
+              run: docker compose down
+            

@@ -1,0 +1,82 @@
+{
+  "name": "encore-better-auth",
+  "version": "0.1.0",
+  "description": "The most comprehensive authentication library for Encore TS based on BetterAuth.",
+  "type": "module",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/solarsoft0/encore-better-auth",
+    "directory": "packages/encore-better-auth"
+  },
+  "scripts": {
+    "build": "unbuild --clean",
+    "dev": "concurrently \"unbuild --watch\" \"npm run dev:types\"",
+    "dev:types": "tsc --project tsconfig.declarations.json --watch",
+    "build:types": "tsc --project tsconfig.declarations.json",
+    "stub": "unbuild --stub",
+    "bump": "bumpp",
+    "typecheck": "tsc --noEmit --project tsconfig.declarations.json"
+  },
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.mjs",
+  "exports": {
+    ".": {
+      "import": {
+        "types": "./dist/index.d.ts",
+        "default": "./dist/index.mjs"
+      },
+      "require": {
+        "types": "./dist/index.d.cts",
+        "default": "./dist/index.cjs"
+      }
+    },
+    "./api": {
+      "import": {
+        "types": "./dist/api/index.d.ts",
+        "default": "./dist/api/index.mjs"
+      },
+      "require": {
+        "types": "./dist/api/index.d.cts",
+        "default": "./dist/api/index.cjs"
+      }
+    },
+    "./encore": {
+      "import": {
+        "types": "./dist/encore/index.d.ts",
+        "default": "./dist/api/index.mjs"
+      },
+      "require": {
+        "types": "./dist/encore/index.d.cts",
+        "default": "./dist/encore/index.cjs"
+      }
+    }
+  },
+  "typesVersions": {
+    "*": {
+      "*": [
+        "./dist/index.d.ts"
+      ],
+      "api": [
+        "./dist/api/index.d.ts"
+      ],
+      "encore": [
+        "./dist/encore/index.d.ts"
+      ]
+    }
+  },
+  "devDependencies": {
+    "typescript": "catalog:",
+    "unbuild": "catalog:"
+  },
+  "dependencies": {
+    "better-auth": "1.2.1-beta.6",
+    "encore.dev": "^1.46.3",
+    "zod": "^3.24.2"
+  },
+  "overrides": {
+    "whatwg-url": "^14.0.0"
+  },
+  "files": [
+    "dist"
+  ]
+}
