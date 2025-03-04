@@ -15,6 +15,7 @@ export function generateModelInputTypeString(
     const fields: string[] = [];
 
     for (const [key, field] of Object.entries(schema)) {
+        console.log(schema)
         let fieldType = getBaseTypeString(field.type);
         let isOptional = false;
 
