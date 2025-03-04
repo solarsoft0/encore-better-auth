@@ -1,27 +1,12 @@
-import { api, middleware } from "encore.dev/api";
+import { api } from "encore.dev/api";
 import { Service } from "encore.dev/service";
-import { encoreBetterAuth } from "./encore-better-auth";
 import { apiKey } from "better-auth/plugins";
+import { encoreBetterAuth } from "encore-better-auth";
+import { currentRequest } from 'encore.dev';
 
-// Encore will consider this directory and all its subdirectories as part of the "users" service.
-// https://encore.dev/docs/ts/primitives/services
-export default new Service("auth", {
-    middlewares: [
-        middleware(async (req, next) => {
-            const response = await next(req);
-            console.log(response, "from middleeware");
-            delete response.payload.headers;
-            response.payload = {
-                hello: "hello",
-                world: "world",
-            };
-            console.log(req.requestMeta);
-            return response;
-        }),
-    ],
-});
 
-export const { routeHandlers } = encoreBetterAuth({
+const auth = encoreBetterAuth({
+    currentRequest: currentRequest,
     plugins: [
         apiKey({
             rateLimit: {
@@ -31,36 +16,27 @@ export const { routeHandlers } = encoreBetterAuth({
             },
         }),
     ],
-    generateRoutes: false,
-    // outputPath: "",
-    // printRoutes: true,
+    generateRoutes: true,
 });
 
 
 
+// Encore will consider this directory and all its subdirectories as part of the "users" service.
+// https://encore.dev/docs/ts/primitives/services
+export default new Service("auth", {
+    middlewares: [
+        ...auth.middlewares,
+    ],
+});
 
 
-// // routeHandlers.getApiKey()
-// console.log(typeof routeHandlers.listUserAccounts, "type of list");
-// console.log(typeof routeHandlers.signUpEmail, "type of list");
 
-
-
-
-
-// const value = await routeHandlers.ok();
-// const account = await routeHandlers.signInEmail({
-//     email: "email",
-//     password: "password",
-// });
-
-type Response = {
-    hello: string;
-    world: string;
-}[];
-export const destroy = api(
-    { expose: true, method: "DELETE", path: "/test-users/:id" },
-    async ({ id }: { id: string }): Promise<Response[]> => {
-        return [{ hello: "jjjj", world: "world" }] as Response[];
+type OkResponse = {
+    ok: boolean;
+}
+export const authOk = api(
+    { expose: true, method: "POST", path: "/auth/ok" },
+    async (): Promise<OkResponse> => {
+        return (await auth.routeHandlers.ok()) as OkResponse;
     }
 );
