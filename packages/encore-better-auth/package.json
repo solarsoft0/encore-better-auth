@@ -73,6 +73,9 @@
     "encore.dev": "^1.46.3",
     "zod": "^3.24.2"
   },
+  "peerDependencies": {
+    "better-auth": "1.2.1-beta.6"
+  },
   "overrides": {
     "whatwg-url": "^14.0.0"
   },

@@ -12,8 +12,6 @@ export default defineBuildConfig({
 	clean: false,
 	failOnWarn: false,
 	externals: [
-		"prisma",
-		"@prisma/client",
 		"better-sqlite3",
 		"react",
 		// "next/headers",
@@ -25,10 +23,13 @@ export default defineBuildConfig({
 		"@vitest/snapshot",
 		"@vitest/spy",
 		"better-auth",
+		"encore.dev",
 	],
 	entries: [
 		"./src/index.ts",
 		"./src/types/index.ts",
+		"./src/encore/index.ts",
+		"./src/generator/index.ts",
 		// "./src/plugins/example/index.ts",
 	],
 });

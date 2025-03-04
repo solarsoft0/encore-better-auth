@@ -3,12 +3,11 @@ import { getEndpoints } from "better-auth/api";
 import fs from "fs";
 import path from "path";
 import { generateEncoreRoutes } from "./generator";
-import type { EncoreBetterAuth, EncoreBetterAuthOptions } from './types';
-import { createEncoreApi } from './encore';
+import type { EncoreBetterAuth, EncoreBetterAuthOptions } from "./types";
+import { createEncoreHandlers } from "./encore";
+import { createEncoreMiddlewares } from "./encore/handler";
 // Get the root of the project (instead of the build directory)
 const projectRoot = process.cwd();
-
-
 
 export function encoreBetterAuth<O extends EncoreBetterAuthOptions>(
     options: O
@@ -16,9 +15,12 @@ export function encoreBetterAuth<O extends EncoreBetterAuthOptions>(
     const auth = betterAuth(options);
     const { $context } = auth;
     // Awaited<typeof auth.$context>
-    const { api: apiEndpoints } = getEndpoints($context, options);
+    const { api: apiEndpoints, middlewares } = getEndpoints($context, options);
 
-    const encoreHandlers = createEncoreApi(apiEndpoints);
+    const encoreHandlers = createEncoreHandlers(
+        apiEndpoints,
+        options
+    );
     if (options?.generateRoutes) {
         const outputPath =
             options.outputPath ??
@@ -53,7 +55,11 @@ export function encoreBetterAuth<O extends EncoreBetterAuthOptions>(
 
     return {
         routeHandlers: encoreHandlers,
-        ...auth
+        middlewares: createEncoreMiddlewares(
+            middlewares,
+            $context,
+            options
+        ),
+        ...auth,
     };
 }
-

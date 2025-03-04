@@ -5,7 +5,7 @@
     <img src="./banner.png" alt="Better Auth Logo">
   </picture>
   <h2 align="center">
-    Better Auth
+    Encore Better Auth
   </h2>
 
   <p align="center">
@@ -26,11 +26,19 @@
 [![GitHub stars](https://img.shields.io/github/stars/better-auth/better-auth)](https://github.com/better-auth/better-auth/stargazers)
 </p>
 
+Encore BetterAuth is not compatible with BetterAuth Client due to this [issue.](https://github.com/better-auth/better-auth/issues/1655), i may provide a client patch.
+
+
 ## About the Project
 
 Better Auth is framework-agnostic authentication (and authorization) library for TypeScript. It provides a comprehensive set of features out of the box and includes a plugin ecosystem that simplifies adding advanced functionalities with minimal code in short amount of time. Whether you need 2FA, multi-tenant support, or other complex features. It lets you focus on building your actual application instead of reinventing the wheel. 
 
+
 ### Why Better Auth
+  
+Authentication in the TypeScript ecosystem is a half-solved problem. Other open-source libraries often requires a lot of additional code for anything beyond basic authentication. Rather than just pushing third-party services as the solution, I believe we can do better as a community—hence, Better Auth.
+
+### Why Encore?
 
 Authentication in the TypeScript ecosystem is a half-solved problem. Other open-source libraries often requires a lot of additional code for anything beyond basic authentication. Rather than just pushing third-party services as the solution, I believe we can do better as a community—hence, Better Auth.
 

@@ -1,7 +1,6 @@
-import {
-    BetterAuthOptions,
-} from "better-auth";
-import { FieldType, getAllFields } from 'better-auth/db';
+import type { BetterAuthOptions } from "better-auth";
+import type { FieldType } from "better-auth/db";
+import { getAllFields } from "better-auth/db";
 
 /**
  * Generates a TypeScript input type definition as a string

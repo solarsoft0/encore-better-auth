@@ -1,5 +1,6 @@
 import { getEndpoints } from "better-auth/api";
 import type { Endpoint, EndpointOptions } from "better-call";
+import { ZodBoolean, ZodDate, ZodEnum, ZodLiteral, ZodNullable, ZodNumber, ZodObject, ZodOptional, ZodString,  } from "zod";
 import type { AuthContext, BetterAuthOptions } from "better-auth";
 import {
     generateModelInputTypeString,
@@ -677,121 +678,163 @@ export function detectAuthRequirement(endpoint: any): boolean {
     return false;
 }
 
-/**
- * Extracts property definitions from a Zod schema object
- * @param zodSchema The Zod schema object
- * @returns A record of property names to their types and metadata
- */
-function extractZodFields(
-    zodSchema: any
-): Record<string, { type: string; optional: boolean; description?: string }> {
-    const properties: Record<
-        string,
-        { type: string; optional: boolean; description?: string }
-    > = {};
+const extractZodFields = (schema: any): { name: string; type: string; optional: boolean }[] => {
 
-    // Handle undefined or non-object schemas
-    if (!zodSchema || typeof zodSchema !== "object") return properties;
-
-    // Handle ZodRecord type
-    if (isZodRecord(zodSchema)) {
-        return { "*": { type: "Record<string, any>", optional: false } };
+    console.log(schema, "extractZodFields");
+    // Handle non-object schemas gracefully
+    if (!schema || !("shape" in schema)) {
+        return [];
     }
 
-    // Check if this is a Zod object with a shape property
-    const shape = zodSchema.shape || zodSchema._def?.shape;
-    if (!shape) return properties;
+    const shape = (schema as ZodObject<any>).shape; // Cast to access shape
+    if (!shape || typeof shape !== "object") {
+        return [];
+    }
 
-    // Extract properties from the Zod schema
-    for (const [key, value] of Object.entries(shape)) {
-        // Skip internal properties
-        if (key.startsWith("_")) continue;
+    return Object.entries(shape).map(([name, field]) => {
+        const isOptional = field instanceof ZodOptional || field instanceof ZodNullable;
+        const baseField = isOptional ? field._def.innerType : field;
 
-        const isOptional =
-            // @ts-ignore
-            value?.isOptional === true ||
-            String(value).includes("ZodOptional") ||
-            // @ts-ignore
-            value?._def?.typeName === "ZodOptional";
-
-        let type = "any";
-        let description: string | undefined;
-
-        // Try to determine description from Zod metadata
-        // @ts-ignore
-        if (value?._def?.description) {
-            // @ts-ignore
-            description = value._def.description;
-        }
-
-        // Determine the type based on the Zod type or constructor name
-        const typeName =
-            // @ts-ignore
-            value?.typeName ||
-            // @ts-ignore
-            value?._def?.typeName ||
-            value?.constructor?.name;
-
-        if (typeName === "ZodString" || String(value).includes("ZodString")) {
+        // Map Zod types to TypeScript types
+        let type: string;
+        if (baseField instanceof ZodString) {
             type = "string";
-        } else if (
-            typeName === "ZodNumber" ||
-            String(value).includes("ZodNumber")
-        ) {
+        } else if (baseField instanceof ZodNumber) {
             type = "number";
-        } else if (
-            typeName === "ZodBoolean" ||
-            String(value).includes("ZodBoolean")
-        ) {
+        } else if (baseField instanceof ZodBoolean) {
             type = "boolean";
-        } else if (
-            typeName === "ZodEnum" ||
-            String(value).includes("ZodEnum")
-        ) {
-            // Extract enum values if available
-            // @ts-ignore
-            const enumValues = value?._def?.values || [];
-            if (Array.isArray(enumValues) && enumValues.length > 0) {
-                type = enumValues
-                    .map((v) => (typeof v === "string" ? `"${v}"` : v))
-                    .join(" | ");
-            } else {
-                type = "string";
-            }
-        } else if (
-            typeName === "ZodObject" ||
-            String(value).includes("ZodObject")
-        ) {
-            // For nested objects, we could recursively extract properties
-            // but for simplicity we'll just use 'Record<string, any>'
-            type = "Record<string, any>";
-        } else if (
-            typeName === "ZodArray" ||
-            String(value).includes("ZodArray")
-        ) {
-            // Try to get element type
-            // @ts-ignore
-            const elementType = value?._def?.type;
-            if (elementType) {
-                const innerType = getZodTypeString(elementType);
-                type = `${innerType}[]`;
-            } else {
-                type = "any[]";
-            }
-        } else if (
-            typeName === "ZodDate" ||
-            String(value).includes("ZodDate")
-        ) {
+        } else if (baseField instanceof ZodDate) {
             type = "Date";
-        } else if (isZodRecord(value)) {
-            type = "Record<string, any>";
+         //} else if (baseField instanceof ZodArray) {
+        //     const itemType = extractZodFields(baseField._def.type)[0]?.type || "any";
+        //     type = `${itemType}[]`;
+        } else if (baseField instanceof ZodLiteral) {
+            type = `"${baseField.value}"`;
+        } else if (baseField instanceof ZodEnum) {
+            type = baseField.options.map((opt: any) => `"${opt}"`).join(" | ");
+        } else {
+            type = "any"; // Fallback for unsupported types
         }
 
-        properties[key] = { type, optional: isOptional, description };
-    }
+        return { name, type, optional: isOptional };
+    });
+};
 
-    return properties;
-}
+// /**
+//  * Extracts property definitions from a Zod schema object
+//  * @param zodSchema The Zod schema object
+//  * @returns A record of property names to their types and metadata
+//  */
+// function extractZodFields(
+//     zodSchema: any
+// ): Record<string, { type: string; optional: boolean; description?: string }> {
+//     const properties: Record<
+//         string,
+//         { type: string; optional: boolean; description?: string }
+//     > = {};
+
+//     // Handle undefined or non-object schemas
+//     if (!zodSchema || typeof zodSchema !== "object") return properties;
+
+//     // Handle ZodRecord type
+//     if (isZodRecord(zodSchema)) {
+//         return { "*": { type: "Record<string, any>", optional: false } };
+//     }
+
+//     // Check if this is a Zod object with a shape property
+//     const shape = zodSchema.shape || zodSchema._def?.shape;
+//     if (!shape) return properties;
+
+//     // Extract properties from the Zod schema
+//     for (const [key, value] of Object.entries(shape)) {
+//         // Skip internal properties
+//         if (key.startsWith("_")) continue;
+
+//         const isOptional =
+//             // @ts-ignore
+//             value?.isOptional === true ||
+//             String(value).includes("ZodOptional") ||
+//             // @ts-ignore
+//             value?._def?.typeName === "ZodOptional";
+
+//         let type = "any";
+//         let description: string | undefined;
+
+//         // Try to determine description from Zod metadata
+//         // @ts-ignore
+//         if (value?._def?.description) {
+//             // @ts-ignore
+//             description = value._def.description;
+//         }
+
+//         // Determine the type based on the Zod type or constructor name
+//         const typeName =
+//             // @ts-ignore
+//             value?.typeName ||
+//             // @ts-ignore
+//             value?._def?.typeName ||
+//             value?.constructor?.name;
+
+//         if (typeName === "ZodString" || String(value).includes("ZodString")) {
+//             type = "string";
+//         } else if (
+//             typeName === "ZodNumber" ||
+//             String(value).includes("ZodNumber")
+//         ) {
+//             type = "number";
+//         } else if (
+//             typeName === "ZodBoolean" ||
+//             String(value).includes("ZodBoolean")
+//         ) {
+//             type = "boolean";
+//         } else if (
+//             typeName === "ZodEnum" ||
+//             String(value).includes("ZodEnum")
+//         ) {
+//             // Extract enum values if available
+//             // @ts-ignore
+//             const enumValues = value?._def?.values || [];
+//             if (Array.isArray(enumValues) && enumValues.length > 0) {
+//                 type = enumValues
+//                     .map((v) => (typeof v === "string" ? `"${v}"` : v))
+//                     .join(" | ");
+//             } else {
+//                 type = "string";
+//             }
+//         } else if (
+//             typeName === "ZodObject" ||
+//             String(value).includes("ZodObject")
+//         ) {
+//             // For nested objects, we could recursively extract properties
+//             // but for simplicity we'll just use 'Record<string, any>'
+//             type = "Record<string, any>";
+//         } else if (
+//             typeName === "ZodArray" ||
+//             String(value).includes("ZodArray")
+//         ) {
+//             // Try to get element type
+//             // @ts-ignore
+//             const elementType = value?._def?.type;
+//             if (elementType) {
+//                 const innerType = getZodTypeString(elementType);
+//                 type = `${innerType}[]`;
+//             } else {
+//                 type = "any[]";
+//             }
+//         } else if (
+//             typeName === "ZodDate" ||
+//             String(value).includes("ZodDate")
+//         ) {
+//             type = "Date";
+//         } else if (isZodRecord(value)) {
+//             type = "Record<string, any>";
+//         }
+
+//         properties[key] = { type, optional: isOptional, description };
+//     }
+
+//     return properties;
+// }
 
 /**
  * Gets a string representation of a Zod type
