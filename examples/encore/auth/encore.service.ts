@@ -5,7 +5,8 @@ import { encoreBetterAuth } from "encore-better-auth";
 import { currentRequest } from 'encore.dev';
 
 
-const auth = encoreBetterAuth({
+// ensure to export auth.
+export const auth = encoreBetterAuth({
     currentRequest: currentRequest,
     plugins: [
         apiKey({
@@ -17,6 +18,7 @@ const auth = encoreBetterAuth({
         }),
     ],
     generateRoutes: true,
+    wrapResponse: true,
 });
 
 
@@ -40,6 +42,6 @@ export const authOk = api(
 	{ expose: true, method: "POST", path: "/auth/ok" },
 	async (params: OkParams): Promise<OkResponse> => {
 		// auth.routeHandlers.callbackOAuth()
-		return (await auth.routeHandlers.ok()) as unknown as OkResponse;
+		return (await auth.routeHandlers.ok()) as OkResponse;
 	},
 );
