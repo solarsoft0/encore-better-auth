@@ -4,7 +4,7 @@ import type { AuthContext, BetterAuthOptions, ZodType } from "better-auth";
 import { extractZodFields } from "./zod-utils";
 
 interface GeneratorOptions {
-	wrapResponseInData?: boolean;
+	wrapResponse: boolean;
 	overrides?: Record<
 		string,
 		{
@@ -32,13 +32,9 @@ interface EndpointDefinition {
 export async function generateEncoreRoutes(
 	ctx: Promise<AuthContext>,
 	authOptions: BetterAuthOptions,
-	genOptions: GeneratorOptions = {},
+	genOptions: GeneratorOptions,
 ): Promise<string> {
-	const {
-		wrapResponseInData = false,
-		overrides = {},
-		plugins = [],
-	} = genOptions;
+	const { wrapResponse, overrides = {}, plugins = [] } = genOptions;
 
 	const endpoints = getEndpoints(ctx, authOptions).api;
 
@@ -50,8 +46,7 @@ export async function generateEncoreRoutes(
 				name,
 				endpoint,
 				authOptions,
-				overrides,
-				wrapResponseInData,
+				overrides
 			),
 		);
 
@@ -59,7 +54,7 @@ export async function generateEncoreRoutes(
 		endpointDefinitions = plugin(endpointDefinitions);
 	}
 
-	return generateCodeFromDefinitions(endpointDefinitions, wrapResponseInData);
+	return generateCodeFromDefinitions(endpointDefinitions, wrapResponse);
 }
 
 function buildEndpointDefinition(
@@ -67,20 +62,15 @@ function buildEndpointDefinition(
 	endpoint: Endpoint,
 	_authOptions: BetterAuthOptions,
 	overrides: GeneratorOptions["overrides"],
-	wrapResponseInData: boolean,
 ): EndpointDefinition {
 	const { path, options } = endpoint;
 
 	const override = overrides?.[name] || {};
 
 	const methods = normalizeMethods(options.method);
-	const middleware = override.middleware || extractMiddleware(endpoint);
+	const middleware = [path]; // middlewares uses paths for matching.
 	const params = buildParams(endpoint, override.paramsType);
-	const response = buildResponse(
-		endpoint,
-		override.responseType,
-		wrapResponseInData,
-	);
+	const response = buildResponse(endpoint, override.responseType);
 	const comment = buildComment(options);
 
 	return {
@@ -102,29 +92,32 @@ function buildEndpointDefinition(
 function getParamsCodeAndType(
 	paramsDef: TypeDefinition,
 	baseName: string,
-): { code: string; paramsPart: string } {
+): { code: string; paramsPart: string; baseTypeName: string } {
 	if (typeof paramsDef === "string") {
-		return { code: "", paramsPart: `params: ${paramsDef}` };
+		return {
+			code: "",
+			paramsPart: `params: ${paramsDef}`,
+			baseTypeName: baseName,
+		};
 	} else if (paramsDef.length > 0) {
-		const interfaceName = `${capitalize(baseName)}Params`;
+		const baseTypeName = `${capitalize(baseName)}Params`;
 		const fields = paramsDef
 			.map((p) => `  ${p.name}${p.optional ? "?" : ""}: ${p.type}`)
 			.join("\n");
-		const code = `interface ${interfaceName} {\n${fields}\n}\n`;
-		return { code, paramsPart: `params: ${interfaceName}` };
+		const code = `interface ${baseTypeName} {\n${fields}\n}\n`;
+		return { code, paramsPart: `params: ${baseTypeName}`, baseTypeName };
 	} else {
-		return { code: "", paramsPart: "" };
+		return { code: "", paramsPart: "", baseTypeName: "" };
 	}
 }
-
 
 function getResponseCodeAndType(
 	responseDef: TypeDefinition,
 	baseName: string,
 	wrapInData: boolean,
-): { code: string; responseType: string } {
+): { code: string; responseType: string; baseTypeName: string } {
 	if (responseDef === "void") {
-		return { code: "", responseType: "void" };
+		return { code: "", responseType: "{ data: any }", baseTypeName: "" };
 	}
 	let baseType: string;
 	let code = "";
@@ -138,37 +131,45 @@ function getResponseCodeAndType(
 		code = `type ${typeName} = {\n${fields}\n};\n`;
 		baseType = typeName;
 	}
-	const finalType =
-		wrapInData && baseType !== "void" ? `{ data: ${baseType} }` : baseType;
-	return { code, responseType: finalType };
+	const finalType = wrapInData ? `{ data: ${baseType} }` : baseType;
+	return { code, responseType: finalType, baseTypeName: baseType };
 }
-
-
 
 function generateCodeFromDefinitions(
 	definitions: EndpointDefinition[],
-	wrapResponseInData: boolean,
+	wrapResponse: boolean,
 ): string {
-	let code = `import { api } from "encore.dev/api";\n\n`;
-
+	let code = `import { api } from "encore.dev/api";\n`;
+	code += `import { auth } from './encore.service';\n\n`;
 	for (const def of definitions) {
-		const { code: paramsCode, paramsPart } = getParamsCodeAndType(
-			def.params,
-			def.name,
-		);
+		const {
+			code: paramsCode,
+			paramsPart,
+			baseTypeName: paramsbaseTypeName,
+		} = getParamsCodeAndType(def.params, def.name);
 		code += paramsCode;
 
 		const { code: responseCode, responseType } = getResponseCodeAndType(
 			def.response,
 			def.name,
-			wrapResponseInData,
+			wrapResponse,
 		);
 		code += responseCode;
 
 		const apiConfig = buildApiConfig(def);
 
+		const adjustedParamsPart =
+			def.methods.includes("GET") && def.methods.length === 1 && !!paramsbaseTypeName
+				? `_: ${paramsbaseTypeName}`
+				: paramsPart;
+
 		// Construct function parameters
-		const asyncParams = paramsPart ? `(${paramsPart})` : "()";
+		const asyncParams = adjustedParamsPart ? `(${adjustedParamsPart})` : "()";
+		const handlerParams =
+			(def.methods.includes("GET") && def.methods.length === 1) || asyncParams == "()"
+				? `()`
+				: `(params)`;
+
 
 		// Assemble the endpoint code
 		code += `
@@ -176,8 +177,10 @@ ${def.comment}
 export const ${def.name} = api(
   { ${apiConfig.join(", ")} },
   async ${asyncParams}: Promise<${responseType}> => {
-    // Implement your logic here
-    throw new Error("Not implemented");
+    // Using "as" to ignore response inconsistency from OpenAPI, to be resolved with PR https://github.com/better-auth/better-auth/pull/1699
+    return await auth.routeHandlers.${
+			def.name
+		}${handlerParams} as ${responseType};
   }
 );
 `;
@@ -185,8 +188,6 @@ export const ${def.name} = api(
 
 	return code.trim();
 }
-
-
 
 function normalizeMethods(method: string | string[]): string[] {
 	return Array.isArray(method) ? method : [method || "GET"];
@@ -202,15 +203,9 @@ function buildApiConfig({
 		`path: "${path}"`,
 		`expose: true`,
 		middleware.length
-			? `middleware: [${middleware.map((m) => `"${m}"`).join(", ")}]`
+			? `tags: [${middleware.map((m) => `"${m}"`).join(", ")}]`
 			: "",
 	].filter(Boolean);
-}
-
-function extractMiddleware(endpoint: Endpoint): string[] {
-	return (
-		endpoint.options.use?.map((mw) => mw.name || "unknownMiddleware") || []
-	);
 }
 
 function buildParams(
@@ -260,7 +255,6 @@ function buildParams(
 function buildResponse(
 	endpoint: Endpoint,
 	overrideType: string | undefined,
-	wrapResponseInData: boolean,
 ): TypeDefinition {
 	if (overrideType) {
 		return overrideType;
@@ -283,7 +277,6 @@ function buildComment(options: EndpointOptions): string {
 function extractPathParams(path: string): string[] {
 	return (path.match(/:\w+/g) || []).map((param) => param.slice(1));
 }
-
 
 function convertOpenAPISchemaToFieldDefinitions(schema: any): TypeDefinition {
 	if (!schema) return "any";

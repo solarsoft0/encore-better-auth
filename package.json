@@ -26,7 +26,6 @@
         "bumpp": "^9.8.1",
         "cross-env": "^7.0.3",
         "dotenv-cli": "^7.4.4",
-        "encore-better-auth": "^0.1.0",
         "simple-git-hooks": "^2.11.1",
         "taze": "^0.18.0",
         "tinyglobby": "^0.2.10",

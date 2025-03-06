@@ -32,9 +32,6 @@ importers:
       dotenv-cli:
         specifier: ^7.4.4
         version: 7.4.4
-      encore-better-auth:
-        specifier: ^0.1.0
-        version: link:packages/encore-better-auth
       simple-git-hooks:
         specifier: ^2.11.1
         version: 2.11.1
