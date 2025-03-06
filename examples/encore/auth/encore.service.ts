@@ -30,13 +30,16 @@ export default new Service("auth", {
 });
 
 
-
+type OkParams = {
+	data: any;
+};
 type OkResponse = {
-    ok: boolean;
+    data: any;
 }
 export const authOk = api(
-    { expose: true, method: "POST", path: "/auth/ok" },
-    async (): Promise<OkResponse> => {
-        return (await auth.routeHandlers.ok());
-    }
+	{ expose: true, method: "POST", path: "/auth/ok" },
+	async (params: OkParams): Promise<OkResponse> => {
+		// auth.routeHandlers.callbackOAuth()
+		return (await auth.routeHandlers.ok()) as unknown as OkResponse;
+	},
 );

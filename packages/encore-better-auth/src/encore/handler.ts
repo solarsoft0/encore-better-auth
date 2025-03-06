@@ -276,7 +276,7 @@ export function createEncoreMiddlewares(
                     }
                 });
             }
-
+                
              wrappedResponse.payload = response;
             return wrappedResponse;
         }),
