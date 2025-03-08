@@ -1,1055 +1,357 @@
 import { getEndpoints } from "better-auth/api";
 import type { Endpoint, EndpointOptions } from "better-call";
-import { ZodBoolean, ZodDate, ZodEnum, ZodLiteral, ZodNullable, ZodNumber, ZodObject, ZodOptional, ZodString,  } from "zod";
-import type { AuthContext, BetterAuthOptions } from "better-auth";
-import {
-    generateModelInputTypeString,
-    generateModelOutputTypeString,
-} from "./type-generator";
+import type { AuthContext, BetterAuthOptions, ZodType } from "better-auth";
+import { extractZodFields } from "./zod-utils";
+import type {
+	EncoreBetterAuthOptions,
+	EndpointDefinition,
+	FieldDefinition,
+	TypeDefinition,
+} from "../types";
 
-/**
- * Generates Encore.ts routes based on API endpoint information from better-auth
- * @param ctx Authentication context
- * @param options BetterAuth options including plugins
- * @param genOptions Configuration options for the generator
- * @returns A string containing the generated Encore.ts routes file
- */
-
-interface Overrides {
-    paramsType?: string;
-    responseType?: string;
-    model?: "user" | "session" | "account";
-    action?: "create" | "update";
+interface GeneratorOptions {
+	plugins?: ((definitions: EndpointDefinition[]) => EndpointDefinition[])[];
 }
-
-type EndpointOverrides = Record<string, Overrides>;
 
 export async function generateEncoreRoutes(
-    ctx: Promise<AuthContext>,
-    options: BetterAuthOptions
+	ctx: Promise<AuthContext>,
+	authOptions: EncoreBetterAuthOptions,
+	genOptions: GeneratorOptions,
 ): Promise<string> {
-    const plugins = options.plugins;
+	const { plugins = [] } = genOptions;
 
-    // Start with basic imports
-    let encoreRoutes = `import { api } from "encore.dev/api";\n`;
+	const endpoints = getEndpoints(ctx, authOptions).api;
 
-    encoreRoutes += `\n`;
+	let endpointDefinitions: EndpointDefinition[] = Object.entries(endpoints)
+	// @ts-ignore
+		.filter(([, ep]) => ep && !ep.options?.metadata?.SERVER_ONLY)
+		.map(([name, endpoint]) =>
+			buildEndpointDefinition(name, endpoint, authOptions),
+		);
 
-    // Track models to avoid duplicates
-    const models = new Set<string>();
-    models.add("user");
-    models.add("session");
-    models.add("account");
+	endpointDefinitions = composePlugins(...plugins)(endpointDefinitions);
 
-    // Track interfaces to avoid duplicates
-    const generatedInterfaces = new Set<string>();
-
-    // Get base endpoints
-    const baseEndpoints = getEndpoints(ctx, {
-        ...options,
-        plugins: [], // Get only core endpoints first
-    });
-
-    // Process base endpoints
-    let endpointCode = processEndpoints(
-        baseEndpoints.api,
-        generatedInterfaces,
-        options
-    );
-
-    // Process plugin endpoints
-    // plugin needs special support since headers can be abbitary, if encore client DX is to be improved.
-    // currently aiming for api parity. with better-auth. so for now middleware handling header is enough.
-    if (plugins && plugins.length > 0) {
-        for (const plugin of plugins) {
-            if (plugin.id === "open-api") {
-                continue; // Skip OpenAPI plugin as it's handled separately
-            }
-
-            const pluginEndpoints = getEndpoints(ctx, {
-                ...options,
-                plugins: [plugin],
-            });
-
-            // Filter out any endpoints that exist in the base endpoints
-            const uniquePluginEndpoints = Object.entries(pluginEndpoints.api)
-                .filter(
-                    ([key]) =>
-                        !baseEndpoints.api[
-                            key as keyof typeof baseEndpoints.api
-                        ]
-                )
-                .reduce((acc, [key, value]) => {
-                    acc[key] = value;
-                    return acc;
-                }, {} as Record<string, any>);
-
-            // Process plugin endpoints
-            endpointCode += processEndpoints(
-                uniquePluginEndpoints,
-                generatedInterfaces,
-                options
-            );
-        }
-    }
-
-    encoreRoutes += endpointCode;
-
-    return encoreRoutes.trim();
+	return generateCodeFromDefinitions(endpointDefinitions, authOptions);
 }
-// function processEndpoints(
-//     endpoints: Record<string, Endpoint>,
-//     generatedInterfaces: Set<string>,
-//     authOptions: BetterAuthOptions
-// ): string {
-//     let code = "";
 
-//     for (const [endpointName, endpoint] of Object.entries(endpoints || {})) {
-//         if (!endpoint) continue;
+function buildEndpointDefinition(
+	name: string,
+	endpoint: Endpoint,
+	_authOptions: BetterAuthOptions,
+): EndpointDefinition {
+	const { path, options } = endpoint;
+	return {
+		name,
+		path,
+		methods: normalizeMethods(options.method),
+		middleware: [path],
+		params: buildParams(endpoint),
+		response: buildResponse(endpoint),
+		comment: buildComment(options),
+	};
+}
 
-//         const options = endpoint.options as EndpointOptions;
-//         if (options?.metadata?.SERVER_ONLY) continue;
-
-//         const path = endpoint.path || "";
-//         const methods = Array.isArray(options.method)
-//             ? options.method
-//             : [options.method || "GET"];
-
-//         // Infer model and action
-//         const model = inferModel(endpoint, options, path);
-//         const action = inferAction(methods, options);
-
-//         // Extract path parameters
-//         const pathParams = extractPathParams(path);
-
-//         // Generate request interface
-//         let requestInterface = "";
-//         let requestType = "{}";
-//         const paramProperties: Record<
-//             string,
-//             { type: string; optional: boolean; description?: string }
-//         > = {};
-
-//         // Add path parameters
-//         pathParams.forEach((param) => {
-//             paramProperties[param] = {
-//                 type: "string",
-//                 optional: false,
-//                 description: "Path parameter",
-//             };
-//         });
-
-//         // Add schema-based input parameters (body)
-//         if (model && action) {
-//             const inputTypeStr = generateModelInputTypeString(
-//                 authOptions,
-//                 model,
-//                 action
-//             );
-//             const inputLines = inputTypeStr.slice(1, -1).trim().split(";\n");
-//             inputLines.forEach((line) => {
-//                 if (!line.trim()) return;
-//                 const [keyPart, typePart] = line.trim().split(": ");
-//                 const isOptional = keyPart.endsWith("?");
-//                 const key = keyPart.replace("?", "");
-//                 paramProperties[key] = { type: typePart, optional: isOptional };
-//             });
-//         }
-
-//         // Add query parameters from schema or metadata
-//         if (options?.query) {
-//             const queryProperties = extractZodProperties(options.query);
-//             Object.entries(queryProperties).forEach(([key, value]) => {
-//                 if (!paramProperties[key]) {
-//                     paramProperties[key] = { ...value, optional: true };
-//                 }
-//             });
-//         }
-
-//         // Generate request interface if properties exist
-//         if (Object.keys(paramProperties).length > 0) {
-//             const interfaceName = `${capitalizeFirstLetter(
-//                 endpointName
-//             )}Params`;
-//             requestInterface = `interface ${interfaceName} {\n${Object.entries(
-//                 paramProperties
-//             )
-//                 .map(
-//                     ([key, value]) =>
-//                         `  ${key}${value.optional ? "?" : ""}: ${value.type}; ${
-//                             value.description ? `// ${value.description}` : ""
-//                         }`
-//                 )
-//                 .join("\n")}\n}\n\n`;
-//             requestType = interfaceName;
-//             generatedInterfaces.add(interfaceName);
-//         }
-
-//         // Generate response interface
-//         let responseInterface = "";
-//         let responseType = "void";
-
-//         if (model) {
-//             const outputTypeStr = generateModelOutputTypeString(
-//                 authOptions,
-//                 model
-//             );
-//             const interfaceName = `${capitalizeFirstLetter(
-//                 endpointName
-//             )}Response`;
-
-//             // Check OpenAPI metadata for response structure
-//             const responseSchema =
-//                 options?.metadata?.openapi?.responses?.["200"]?.content;
-//             if (responseSchema && Object.keys(responseSchema).length > 0) {
-//                 const contentType = Object.keys(responseSchema)[0];
-//                 // @ts-ignore
-//                 const schema = responseSchema[contentType]?.schema;
-//                 if (schema) {
-//                     const properties = extractSchemaProperties(schema);
-//                     if (properties.token && properties.user) {
-//                         // Handle { token: null; user: {...} } style responses
-//                         responseInterface = `interface ${interfaceName} {\n  token: null;\n  user: {\n${outputTypeStr.slice(
-//                             1,
-//                             -1
-//                         )}\n  };\n}\n\n`;
-//                     } else {
-//                         responseInterface = `interface ${interfaceName} {\n${Object.entries(
-//                             properties
-//                         )
-//                             .map(
-//                                 ([key, value]) =>
-//                                     `  ${key}${value.optional ? "?" : ""}: ${
-//                                         value.type
-//                                     };`
-//                             )
-//                             .join("\n")}\n}\n\n`;
-//                     }
-//                     responseType = interfaceName;
-//                     generatedInterfaces.add(interfaceName);
-//                 }
-//             } else {
-//                 // Default to optional model output (common pattern)
-//                 responseInterface = `interface ${interfaceName} {\n  ${model}?: {\n${outputTypeStr.slice(
-//                     1,
-//                     -1
-//                 )}\n  };\n}\n\n`;
-//                 responseType = interfaceName;
-//                 generatedInterfaces.add(interfaceName);
-//             }
-//         }
-
-//         // Generate function comment
-//         const description =
-//             options?.metadata?.openapi?.description ||
-//             `Handles ${endpointName} request`;
-//         const functionComment = `// ${description}`;
-
-//         // Generate Encore API function
-//         const apiConfig = [
-//             `method: [${methods.map((method) => `"${method}"`).join(", ")}]`,
-//             `path: "${path}"`,
-//             `expose: true`,
-//         ];
-
-//         const encoreFunction = `${requestInterface}${responseInterface}${functionComment}\nexport const ${endpointName} = api(\n  { ${apiConfig.join(
-//             ", "
-//         )} },\n  async (${
-//             requestType ? `params: ${requestType}` : ""
-//         }): Promise<${responseType}> => {\n    // Implement your logic here\n    throw new Error("Not implemented");\n  },\n);\n\n`;
-
-//         code += encoreFunction;
-//     }
-
-//     return code;
-// }
-
-
-const endpointOverrides: EndpointOverrides = {};
-function processEndpoints(
-    endpoints: Record<string, Endpoint>,
-    generatedInterfaces: Set<string>,
-    authOptions: BetterAuthOptions
+function generateTypeCode(
+	fields: FieldDefinition[],
+	typeName: string,
+	indentLevel: number = 0,
+	generatedTypes: Set<string> = new Set(),
 ): string {
-    
-    return Object.entries(endpoints || {})
-        .filter(
-            ([, endpoint]) =>
-                endpoint && !endpoint.options?.metadata?.SERVER_ONLY
-        )
-        .map(([endpointName, endpoint]) => {
-            const { path, options } = endpoint;
+	if (generatedTypes.has(typeName)) return "";
+	generatedTypes.add(typeName);
 
-            // const overrides: EndpointOverrides = endpointOverrides[endpointName] || {}
-            const methods = normalizeMethods(options.method);
-            const apiConfig = buildApiConfig(path, methods);
+	const indent = "  ".repeat(indentLevel);
+	const fieldLines: string[] = [];
+	let nestedDefinitions = "";
 
-            // Declarative components
-            const params = buildParams(
-                endpointName,
-                endpoint,
-                authOptions,
-                generatedInterfaces
-            );
-            const response = buildResponse(
-                endpointName,
-                endpoint,
-                authOptions,
-                generatedInterfaces
-            );
-            const comment = buildComment(endpointName, options);
+	fields.forEach((field) => {
+		const fieldIndent = "  ".repeat(indentLevel + 1);
+		if (typeof field.type === "string") {
+			fieldLines.push(
+				`${fieldIndent}${field.name}${field.optional ? "?" : ""}: ${
+					field.type
+				}`,
+			);
+		} else {
+			const nestedTypeName = `${typeName}${capitalize(field.name)}`;
+			fieldLines.push(
+				`${fieldIndent}${field.name}${
+					field.optional ? "?" : ""
+				}: ${nestedTypeName}`,
+			);
+			nestedDefinitions += generateTypeCode(
+				field.type,
+				nestedTypeName,
+				0,
+				generatedTypes,
+			);
+		}
+	});
 
-            // Compose the final Encore API definition
-            return (
-                [
-                    params.interface,
-                    response.interface,
-                    comment,
-                    `export const ${endpointName} = api(`,
-                    `  { ${apiConfig.join(", ")} },`,
-                    `  async (${
-                        params.type ? `params: ${params.type}` : ""
-                    }): Promise<${response.type}> => {`,
-                    `    // Implement your logic here`,
-                    `    throw new Error("Not implemented");`,
-                    `  },`,
-                    `);`,
-                ]
-                    .filter(Boolean) // Remove empty strings
-                    .join("\n") + "\n\n"
-            );
-        })
-        .join("");
+	const typeCode = `${indent}interface ${typeName} {\n${fieldLines.join(
+		"\n",
+	)}\n${indent}}`;
+	return `${nestedDefinitions}${nestedDefinitions ? "\n" : ""}${typeCode}`;
 }
 
-// Helper functions (declarative)
-
-// Normalize methods to array
-const normalizeMethods = (method: string | string[]): string[] =>
-    Array.isArray(method) ? method : [method || "GET"];
-
-// Build API config declaratively
-const buildApiConfig = (path: string, methods: string[]): string[] => [
-    `method: [${methods.map((m) => `"${m}"`).join(", ")}]`,
-    `path: "${path}"`,
-    `expose: true`,
-];
-
-// Build params (interface and type)
-const buildParams = (
-    endpointName: string,
-    endpoint: Endpoint,
-    authOptions: BetterAuthOptions,
-    generatedInterfaces: Set<string>
-): { interface: string; type: string } => {
-    const { path, options } = endpoint;
-    const overrides = endpointOverrides[endpointName] || {};
-    const methods = normalizeMethods(options.method);
-
-    if (overrides.paramsType) {
-        return resolveManualType(
-            endpointName,
-            overrides.paramsType,
-            "Params",
-            generatedInterfaces
-        );
-    }
-
-    const model = overrides.model || inferModel(endpoint, options, path);
-    const action = overrides.action || inferAction(methods, options);
-    const pathParams = extractPathParams(path);
-    const paramFields = [
-        ...pathParams.map((param) => ({
-            name: param,
-            type: "string",
-            optional: false,
-            description: "Path parameter",
-        })),
-        ...(model && action && ["create", "update"].includes(action)
-            ? extractSchemaFields(
-                  generateModelInputTypeString(authOptions, model, action)
-              )
-            : []),
-        ...(!action &&
-        (methods.includes("GET") || methods.includes("DELETE")) &&
-        (endpointName.includes("get") || endpointName.includes("list"))
-            ? [
-                  {
-                      name: "id",
-                      type: "string",
-                      optional: true,
-                      description: "The ID of the resource",
-                  },
-              ]
-            : []),
-        ...(options.query ? extractZodFields(options.query) : []),
-    ].filter(
-        (field, idx, self) =>
-            self.findIndex((f) => f.name === field.name) === idx
-    ); // Deduplicate
-
-    return paramFields.length > 0
-        ? buildInterface(
-              endpointName,
-              "Params",
-              paramFields,
-              generatedInterfaces
-          )
-        : { interface: "", type: "{}" };
-};
-
-// Build response (interface and type)
-const buildResponse = (
-    endpointName: string,
-    endpoint: Endpoint,
-    authOptions: BetterAuthOptions,
-    generatedInterfaces: Set<string>
-): { interface: string; type: string } => {
-    const { path, options } = endpoint;
-    const overrides = endpointOverrides[endpointName] || {};
-
-    if (overrides.responseType) {
-        return resolveManualType(
-            endpointName,
-            overrides.responseType,
-            "Response",
-            generatedInterfaces
-        );
-    }
-
-    const model = overrides.model || inferModel(endpoint, options, path);
-    if (model) {
-        const outputTypeStr = generateModelOutputTypeString(authOptions, model);
-        const fields = extractSchemaFields(outputTypeStr);
-
-        if (endpointName.includes("list")) {
-            return buildInterface(
-                endpointName,
-                "Response",
-                [
-                    {
-                        name: "data",
-                        type: `{${fields
-                            .map(
-                                (f) =>
-                                    `${f.name}${f.optional ? "?" : ""}: ${
-                                        f.type
-                                    }`
-                            )
-                            .join("; ")}}[]`,
-                        optional: false,
-                    },
-                ],
-                generatedInterfaces
-            );
-        }
-
-        if (options?.metadata?.openapi?.responses?.["200"]?.content) {
-            const contentType = Object.keys(
-                options.metadata.openapi.responses["200"].content
-            )[0];
-            const schema =
-                // @ts-ignore
-                options.metadata.openapi.responses["200"].content[contentType]
-                    ?.schema;
-            if (schema) {
-                const properties = extractSchemaProperties(schema);
-                if (properties.token && properties.user) {
-                    return buildInterface(
-                        endpointName,
-                        "Response",
-                        [
-                            { name: "token", type: "null", optional: false },
-                            {
-                                name: "user",
-                                type: `{${fields
-                                    .map(
-                                        (f) =>
-                                            `${f.name}${
-                                                f.optional ? "?" : ""
-                                            }: ${f.type}`
-                                    )
-                                    .join("; ")}}`,
-                                optional: false,
-                            },
-                        ],
-                        generatedInterfaces
-                    );
-                }
-                return buildInterface(
-                    endpointName,
-                    "Response",
-                    Object.entries(properties).map(
-                        ([name, { type, optional }]) => ({
-                            name,
-                            type,
-                            optional,
-                        })
-                    ),
-                    generatedInterfaces
-                );
-            }
-        }
-
-        return buildInterface(
-            endpointName,
-            "Response",
-            [
-                {
-                    name: model,
-                    type: `{${fields
-                        .map(
-                            (f) =>
-                                `${f.name}${f.optional ? "?" : ""}: ${f.type}`
-                        )
-                        .join("; ")}}`,
-                    optional: true,
-                },
-            ],
-            generatedInterfaces
-        );
-    }
-
-    if (endpointName.includes("apiKey")) {
-        const apiKeyFields = [
-            { name: "id", type: "string", optional: false },
-            { name: "key", type: "string", optional: false },
-            { name: "createdAt", type: "Date", optional: false },
-        ];
-        return endpointName.includes("list")
-            ? buildInterface(
-                  endpointName,
-                  "Response",
-                  [
-                      {
-                          name: "data",
-                          type: `{${apiKeyFields
-                              .map((f) => `${f.name}: ${f.type}`)
-                              .join("; ")}}[]`,
-                          optional: false,
-                      },
-                  ],
-                  generatedInterfaces
-              )
-            : buildInterface(
-                  endpointName,
-                  "Response",
-                  [
-                      {
-                          name: "apiKey",
-                          type: `{${apiKeyFields
-                              .map((f) => `${f.name}: ${f.type}`)
-                              .join("; ")}}`,
-                          optional: true,
-                      },
-                  ],
-                  generatedInterfaces
-              );
-    }
-
-    return {
-        interface: "",
-        type:
-            endpointName === "ok" || endpointName === "error" ? "void" : "void",
-    };
-};
-
-// Resolve manual type (inline or reference)
-const resolveManualType = (
-    endpointName: string,
-    typeDef: string,
-    suffix: "Params" | "Response",
-    generatedInterfaces: Set<string>
-): { interface: string; type: string } =>
-    typeDef.startsWith("{") && typeDef.endsWith("}")
-        ? buildInterface(
-              endpointName,
-              suffix,
-              extractSchemaFields(typeDef),
-              generatedInterfaces
-          )
-        : { interface: "", type: typeDef };
-
-// Build interface from fields
-const buildInterface = (
-    endpointName: string,
-    suffix: "Params" | "Response",
-    fields: {
-        name: string;
-        type: string;
-        optional: boolean;
-        description?: string;
-    }[],
-    generatedInterfaces: Set<string>
-): { interface: string; type: string } => {
-    const interfaceName = `${capitalizeFirstLetter(endpointName)}${suffix}`;
-    const interfaceDef = `interface ${interfaceName} {\n${fields
-        .map(
-            (f) =>
-                `  ${f.name}${f.optional ? "?" : ""}: ${f.type};${
-                    f.description ? ` // ${f.description}` : ""
-                }`
-        )
-        .join("\n")}\n}\n\n`;
-    generatedInterfaces.add(interfaceName);
-    return { interface: interfaceDef, type: interfaceName };
-};
-
-const buildComment = (endpointName: string, options: EndpointOptions): string =>
-    `// ${
-        options?.metadata?.openapi?.description ||
-        `Handles ${endpointName} request`
-    }`;
-
-const extractPathParams = (path: string): string[] =>
-    (path.match(/:\w+/g) || []).map((param) => param.slice(1));
-
-const inferModel = (
-    _: Endpoint,
-    __: EndpointOptions,
-    path: string
-): "user" | "session" | "account" | undefined =>
-    path.includes("user")
-        ? "user"
-        : path.includes("session")
-        ? "session"
-        : path.includes("account")
-        ? "account"
-        : undefined;
-
-const inferAction = (
-    methods: string[],
-    _: EndpointOptions
-): "create" | "update" | undefined =>
-    methods.includes("POST")
-        ? "create"
-        : methods.includes("PUT") || methods.includes("PATCH")
-        ? "update"
-        : undefined;
-
-const extractSchemaFields = (
-    typeStr: string
-): { name: string; type: string; optional: boolean }[] =>
-    typeStr
-        .slice(1, -1)
-        .trim()
-        .split(";\n")
-        .filter((line) => line.trim())
-        .map((line) => {
-            const [keyPart, typePart] = line.trim().split(": ");
-            return {
-                name: keyPart.replace("?", ""),
-                type: typePart,
-                optional: keyPart.endsWith("?"),
-            };
-        });
-
-/**
- * Detects if an endpoint requires authentication
- * @param endpoint The endpoint object
- * @returns True if the endpoint requires authentication
- */
-export function detectAuthRequirement(endpoint: any): boolean {
-    // Check if endpoint has "use" property with session and user
-    if (endpoint.use && Array.isArray(endpoint.use)) {
-        // Check middleware for session and user requirements
-        for (const middleware of endpoint.use) {
-            if (middleware?.options?.handler?.arguments?.[0]?.session) {
-                return true;
-            }
-        }
-    }
-
-    // Check if endpoint has a session property in its handler
-    if (endpoint.options?.handler?.arguments?.[0]?.session) {
-        return true;
-    }
-
-    // Check endpoint metadata for auth requirements
-    if (endpoint.options?.metadata?.requiresAuth === true) {
-        return true;
-    }
-
-    // Check for security requirements in OpenAPI metadata
-    if (endpoint.options?.metadata?.openapi?.security) {
-        return true;
-    }
-
-    return false;
+function getParamsCodeAndType(
+	paramsDef: TypeDefinition,
+	baseName: string,
+): { code: string; paramsPart: string; baseTypeName: string } {
+	if (typeof paramsDef === "string") {
+		return {
+			code: "",
+			paramsPart: `params: ${paramsDef}`,
+			baseTypeName: paramsDef,
+		};
+	} else if (paramsDef.length > 0) {
+		const baseTypeName = `${capitalize(baseName)}Params`;
+		const code = generateTypeCode(paramsDef, baseTypeName);
+		return {
+			code: code ? `${code}\n` : "",
+			paramsPart: `params: ${baseTypeName}`,
+			baseTypeName,
+		};
+	}
+	return { code: "", paramsPart: "", baseTypeName: "" };
 }
 
-const extractZodFields = (schema: any): { name: string; type: string; optional: boolean }[] => {
+function getResponseCodeAndType(
+	responseDef: TypeDefinition,
+	baseName: string,
+	wrapInData: boolean,
+): { code: string; responseType: string; baseTypeName: string } {
+	if (responseDef === "void") {
+		return { code: "", responseType: "{ data: any }", baseTypeName: "" };
+	}
 
-    console.log(schema, "extractZodFields");
-    // Handle non-object schemas gracefully
-    if (!schema || !("shape" in schema)) {
-        return [];
-    }
+	let baseType: string;
+	let code = "";
 
-    const shape = (schema as ZodObject<any>).shape; // Cast to access shape
-    if (!shape || typeof shape !== "object") {
-        return [];
-    }
+	if (typeof responseDef === "string") {
+		baseType = responseDef;
+	} else {
+		const typeName = `${capitalize(baseName)}Response`;
+		code = generateTypeCode(responseDef, typeName);
+		baseType = typeName;
+	}
 
-    return Object.entries(shape).map(([name, field]) => {
-        const isOptional = field instanceof ZodOptional || field instanceof ZodNullable;
-        const baseField = isOptional ? field._def.innerType : field;
-
-        // Map Zod types to TypeScript types
-        let type: string;
-        if (baseField instanceof ZodString) {
-            type = "string";
-        } else if (baseField instanceof ZodNumber) {
-            type = "number";
-        } else if (baseField instanceof ZodBoolean) {
-            type = "boolean";
-        } else if (baseField instanceof ZodDate) {
-            type = "Date";
-         //} else if (baseField instanceof ZodArray) {
-        //     const itemType = extractZodFields(baseField._def.type)[0]?.type || "any";
-        //     type = `${itemType}[]`;
-        } else if (baseField instanceof ZodLiteral) {
-            type = `"${baseField.value}"`;
-        } else if (baseField instanceof ZodEnum) {
-            type = baseField.options.map((opt: any) => `"${opt}"`).join(" | ");
-        } else {
-            type = "any"; // Fallback for unsupported types
-        }
-
-        return { name, type, optional: isOptional };
-    });
-};
-
-// /**
-//  * Extracts property definitions from a Zod schema object
-//  * @param zodSchema The Zod schema object
-//  * @returns A record of property names to their types and metadata
-//  */
-// function extractZodFields(
-//     zodSchema: any
-// ): Record<string, { type: string; optional: boolean; description?: string }> {
-//     const properties: Record<
-//         string,
-//         { type: string; optional: boolean; description?: string }
-//     > = {};
-
-//     // Handle undefined or non-object schemas
-//     if (!zodSchema || typeof zodSchema !== "object") return properties;
-
-//     // Handle ZodRecord type
-//     if (isZodRecord(zodSchema)) {
-//         return { "*": { type: "Record<string, any>", optional: false } };
-//     }
-
-//     // Check if this is a Zod object with a shape property
-//     const shape = zodSchema.shape || zodSchema._def?.shape;
-//     if (!shape) return properties;
-
-//     // Extract properties from the Zod schema
-//     for (const [key, value] of Object.entries(shape)) {
-//         // Skip internal properties
-//         if (key.startsWith("_")) continue;
-
-//         const isOptional =
-//             // @ts-ignore
-//             value?.isOptional === true ||
-//             String(value).includes("ZodOptional") ||
-//             // @ts-ignore
-//             value?._def?.typeName === "ZodOptional";
-
-//         let type = "any";
-//         let description: string | undefined;
-
-//         // Try to determine description from Zod metadata
-//         // @ts-ignore
-//         if (value?._def?.description) {
-//             // @ts-ignore
-//             description = value._def.description;
-//         }
-
-//         // Determine the type based on the Zod type or constructor name
-//         const typeName =
-//             // @ts-ignore
-//             value?.typeName ||
-//             // @ts-ignore
-//             value?._def?.typeName ||
-//             value?.constructor?.name;
-
-//         if (typeName === "ZodString" || String(value).includes("ZodString")) {
-//             type = "string";
-//         } else if (
-//             typeName === "ZodNumber" ||
-//             String(value).includes("ZodNumber")
-//         ) {
-//             type = "number";
-//         } else if (
-//             typeName === "ZodBoolean" ||
-//             String(value).includes("ZodBoolean")
-//         ) {
-//             type = "boolean";
-//         } else if (
-//             typeName === "ZodEnum" ||
-//             String(value).includes("ZodEnum")
-//         ) {
-//             // Extract enum values if available
-//             // @ts-ignore
-//             const enumValues = value?._def?.values || [];
-//             if (Array.isArray(enumValues) && enumValues.length > 0) {
-//                 type = enumValues
-//                     .map((v) => (typeof v === "string" ? `"${v}"` : v))
-//                     .join(" | ");
-//             } else {
-//                 type = "string";
-//             }
-//         } else if (
-//             typeName === "ZodObject" ||
-//             String(value).includes("ZodObject")
-//         ) {
-//             // For nested objects, we could recursively extract properties
-//             // but for simplicity we'll just use 'Record<string, any>'
-//             type = "Record<string, any>";
-//         } else if (
-//             typeName === "ZodArray" ||
-//             String(value).includes("ZodArray")
-//         ) {
-//             // Try to get element type
-//             // @ts-ignore
-//             const elementType = value?._def?.type;
-//             if (elementType) {
-//                 const innerType = getZodTypeString(elementType);
-//                 type = `${innerType}[]`;
-//             } else {
-//                 type = "any[]";
-//             }
-//         } else if (
-//             typeName === "ZodDate" ||
-//             String(value).includes("ZodDate")
-//         ) {
-//             type = "Date";
-//         } else if (isZodRecord(value)) {
-//             type = "Record<string, any>";
-//         }
-
-//         properties[key] = { type, optional: isOptional, description };
-//     }
-
-//     return properties;
-// }
-
-/**
- * Gets a string representation of a Zod type
- * @param zodType Zod schema type
- * @returns A string representing the TypeScript type
- */
-function getZodTypeString(zodType: any): string {
-    if (!zodType) return "any";
-
-    const typeName =
-        zodType?.typeName ||
-        zodType?._def?.typeName ||
-        zodType?.constructor?.name;
-
-    switch (typeName) {
-        case "ZodString":
-            return "string";
-        case "ZodNumber":
-            return "number";
-        case "ZodBoolean":
-            return "boolean";
-        case "ZodObject":
-            return "Record<string, any>";
-        case "ZodArray":
-            const elementType = zodType?._def?.type;
-            if (elementType) {
-                return `${getZodTypeString(elementType)}[]`;
-            }
-            return "any[]";
-        case "ZodDate":
-            return "Date";
-        case "ZodEnum":
-            const enumValues = zodType?._def?.values || [];
-            if (Array.isArray(enumValues) && enumValues.length > 0) {
-                return enumValues
-                    .map((v) => (typeof v === "string" ? `"${v}"` : v))
-                    .join(" | ");
-            }
-            return "string";
-        default:
-            return "any";
-    }
+	const finalType = wrapInData ? `{ data: ${baseType} }` : baseType;
+	return {
+		code: code ? `${code}\n` : "",
+		responseType: finalType,
+		baseTypeName: baseType,
+	};
 }
 
-/**
- * Checks if a Zod schema is a ZodRecord type
- * @param zodSchema The Zod schema to check
- * @returns True if the schema is a ZodRecord
- */
-function isZodRecord(zodSchema: any): boolean {
-    if (!zodSchema) return false;
+function generateCodeFromDefinitions(
+	definitions: EndpointDefinition[],
+	authOptions: EncoreBetterAuthOptions,
+): string {
+	let code = `/**
+	 * WARNING: This file is generated automatically. Do not edit. use/create generator plugins to override.
+	 */\n`;
+	code += `import { api } from "encore.dev/api";\n`;
+	code += `import { auth } from './encore.service';\n\n`;
 
-    // Check for ZodRecord in typeName or _def.typeName
-    const typeName =
-        zodSchema.typeName ||
-        zodSchema._def?.typeName ||
-        zodSchema?.constructor?.name;
-    if (typeName === "ZodRecord") return true;
+	for (const def of definitions) {
+		const {
+			code: paramsCode,
+			paramsPart,
+			baseTypeName: paramsBaseTypeName,
+		} = getParamsCodeAndType(def.params, def.name);
+		code += paramsCode;
 
-    // Look for specific ZodRecord pattern
-    return Boolean(
-        String(zodSchema).includes("ZodRecord") ||
-            (zodSchema._def?.keyType && zodSchema._def?.valueType)
-    );
+		const { code: responseCode, responseType } = getResponseCodeAndType(
+			def.response,
+			def.name,
+			authOptions.wrapResponse,
+		);
+		// Add a single newline between params and response types if both exist
+		code += paramsCode && responseCode ? `${responseCode}\n` : responseCode;
+
+		const apiConfig = buildApiConfig(def, authOptions.basePath);
+		const adjustedParamsPart =
+			def.methods.includes("GET") &&
+			def.methods.length === 1 &&
+			paramsBaseTypeName
+				? `_: ${paramsBaseTypeName}`
+				: paramsPart;
+
+		const asyncParams = adjustedParamsPart ? `(${adjustedParamsPart})` : "()";
+		const handlerParams =
+			(def.methods.includes("GET") && def.methods.length === 1) ||
+			asyncParams === "()"
+				? "()"
+				: "(params)";
+
+		code += `
+${def.comment}
+export const ${def.name} = api(
+    { ${apiConfig.join(", ")} },
+    async ${asyncParams}: Promise<${responseType}> => {
+        // Using "as" to ignore response inconsistency from OpenAPI, to be resolved with PR https://github.com/better-auth/better-auth/pull/1699
+        return await auth.routeHandlers.${
+					def.name
+				}${handlerParams} as ${responseType};
+    }
+);\n\n`; // Two newlines for larger gap between routes
+	}
+
+	return code.trim();
 }
 
-/**
- * Extracts property definitions from an OpenAPI schema object
- * @param schema The OpenAPI schema object
- * @returns A record of property names to their types and metadata
- */
-function extractSchemaProperties(
-    schema: any
-): Record<string, { type: string; optional: boolean; description?: string }> {
-    const properties: Record<
-        string,
-        { type: string; optional: boolean; description?: string }
-    > = {};
-
-    // Handle undefined or non-object schemas
-    if (!schema) return properties;
-
-    // Handle schema with $ref
-    if (schema.$ref) {
-        // Extract the type name from the ref
-        const refType = schema.$ref.split("/").pop();
-        return { data: { type: refType || "any", optional: false } };
-    }
-
-    // If no properties but has type, might be a primitive type
-    if (!schema.properties && schema.type) {
-        if (schema.type === "array" && schema.items) {
-            let itemType = "any";
-            if (schema.items.type) {
-                itemType =
-                    schema.items.type === "integer"
-                        ? "number"
-                        : schema.items.type;
-            } else if (schema.items.$ref) {
-                itemType = schema.items.$ref.split("/").pop() || "any";
-            }
-            return { data: { type: `${itemType}[]`, optional: false } };
-        }
-
-        const type = schema.type === "integer" ? "number" : schema.type;
-        return { data: { type, optional: false } };
-    }
-
-    if (!schema.properties) return properties;
-
-    // Extract required properties list
-    const required = Array.isArray(schema.required) ? schema.required : [];
-
-    // Extract properties from the schema
-    for (const [key, value] of Object.entries(schema.properties || {})) {
-        if (!value || typeof value !== "object") continue;
-
-        const isOptional = !required.includes(key);
-        let type = "any";
-
-        // Determine the type based on the schema type
-        // @ts-ignore
-        if (value.type === "string") {
-            // @ts-ignore
-            if (value.format === "date-time") {
-                type = "Date";
-                // @ts-ignore
-            } else if (value.enum && Array.isArray(value.enum)) {
-                // @ts-ignore
-                type = value.enum.map((v: string) => `"${v}"`).join(" | ");
-                // @ts-ignore
-            } else {
-                type = "string";
-            }
-            // @ts-ignore
-        } else if (value.type === "number" || value.type === "integer") {
-            type = "number";
-            // @ts-ignoree
-        } else if (value.type === "boolean") {
-            type = "boolean";
-            // @ts-ignore
-        } else if (value.type === "object") {
-            // @ts-ignore
-            if (value.properties) {
-                // Nested object with properties
-                type = "Record<string, any>"; // Simplified
-            } else {
-                type = "Record<string, any>";
-            }
-            // @ts-ignore
-        } else if (value.type === "array") {
-            // @ts-ignore
-            if (value.items?.type) {
-                type = `${
-                    // @ts-ignore
-                    value.items.type === "string"
-                        ? "string"
-                        : // @ts-ignore
-                        value.items.type === "number" ||
-                          // @ts-ignore
-                          value.items.type === "integer"
-                        ? "number"
-                        : // @ts-ignore
-                        value.items.type === "boolean"
-                        ? "boolean"
-                        : "any"
-                }[]`;
-                // @ts-ignoree
-            } else if (value.items?.$ref) {
-                // Extract type from ref
-                // @ts-ignore
-                const refType = value.items.$ref.split("/").pop();
-                type = `${refType || "any"}[]`;
-            } else {
-                type = "any[]";
-            }
-            // @ts-ignore
-        } else if (value.$ref) {
-            // Handle direct references
-            // @ts-ignore
-            const refType = value.$ref.split("/").pop();
-            type = refType || "any";
-        }
-
-        properties[key] = {
-            type,
-            optional: isOptional,
-            // @ts-ignore
-            description: value.description,
-        };
-    }
-
-    return properties;
+function normalizeMethods(method: string | string[]): string[] {
+	return Array.isArray(method) ? method : [method || "GET"];
 }
 
-/**
- * Capitalizes the first letter of a string
- * @param str The input string
- * @returns The string with the first letter capitalized
- */
-function capitalizeFirstLetter(str: string): string {
-    return str.charAt(0).toUpperCase() + str.slice(1);
+function buildApiConfig({
+	path,
+	methods,
+	middleware,
+}: EndpointDefinition, basePath?: string): string[] {
+	const fullPath = (basePath ? `${basePath}/${path}` : path).replace(
+		/\/\//g,
+		"/",
+	) // removes double slashs...
+	return [
+		`method: [${methods.map((m) => `"${m}"`).join(", ")}]`,
+		`path: "${fullPath}"`,
+		`expose: true`,
+		middleware.length
+			? `tags: [${middleware.map((m) => `"${m}"`).join(", ")}]`
+			: "",
+	].filter(Boolean);
 }
 
-// /**
-//  * Main export function that can be called directly from the CLI
-//  * Generates Encore routes for a better-auth application
-//  */
-// export async function encoreGenerator(
-//     ctx: AuthContext,
-//     options: BetterAuthOptions
-// ) {
-//     // Generate Encore routes with default options
-//     const routeContent = await generateEncoreRoutes(ctx, options);
+function buildParams(endpoint: Endpoint): TypeDefinition {
+	const { path, options } = endpoint;
+	const pathParams = extractPathParams(path);
+	const queryFields = options.query
+		? extractZodFields(options.query as ZodType)
+		: [];
+	const bodyFields = options.body
+		? extractZodFields(options.body as ZodType)
+		: [];
+	const openApiParams = options.metadata?.openapi?.parameters || [];
 
-//     // Return the generated content
-//     return routeContent;
-// }
+	const pathParamFields = pathParams.map((param) => ({
+		name: param,
+		type: "string",
+		optional: false,
+	}));
+
+	const openApiFields = openApiParams.map((param) => {
+		const fieldDef = convertOpenAPISchemaToFieldDefinition(
+			param.schema,
+			param.name ?? "namenotfound",
+		);
+		fieldDef.optional = !param.required;
+		return fieldDef;
+	});
+
+	return [
+		...pathParamFields,
+		...queryFields,
+		...bodyFields,
+		...openApiFields,
+	].filter((f, i, self) => self.findIndex((ff) => ff.name === f.name) === i);
+}
+
+function buildResponse(endpoint: Endpoint): TypeDefinition {
+	const schema =
+		endpoint.options.metadata?.openapi?.responses?.["200"]?.content?.[
+			"application/json"
+		]?.schema;
+	return schema ? convertOpenAPISchemaToFieldDefinitions(schema) : "void";
+}
+
+function buildComment(options: EndpointOptions): string {
+	return `// ${options.metadata?.openapi?.description || "API endpoint"}`;
+}
+
+function extractPathParams(path: string): string[] {
+	return (path.match(/:\w+/g) || []).map((param) => param.slice(1));
+}
+
+function convertOpenAPISchemaToFieldDefinitions(schema: any): TypeDefinition {
+	if (!schema) return "any";
+	if (["string", "number", "integer", "boolean"].includes(schema.type)) {
+		return schema.type === "integer" ? "number" : schema.type;
+	}
+	if (schema.type === "array") {
+		const itemsType = convertOpenAPISchemaToFieldDefinitions(schema.items);
+		return typeof itemsType === "string" ? `${itemsType}[]` : "any";
+	}
+	if (schema.type === "object") {
+		const props = schema.properties || {};
+		const required = schema.required || [];
+		return Object.entries(props).map(([key, prop]) => {
+			const fieldDef = convertOpenAPISchemaToFieldDefinition(prop, key);
+			fieldDef.optional = !required.includes(key);
+			return fieldDef;
+		});
+	}
+	return "any";
+}
+
+function convertOpenAPISchemaToFieldDefinition(
+	schema: any,
+	name: string,
+): FieldDefinition {
+	let type: string;
+	if (!schema) type = "any";
+	else if (schema.type === "string") type = "string";
+	else if (schema.type === "number" || schema.type === "integer")
+		type = "number";
+	else if (schema.type === "boolean") type = "boolean";
+	else if (schema.type === "array") {
+		const itemsType =
+			typeof schema.items === "object"
+				? convertOpenAPISchemaToFieldDefinitions(schema.items)
+				: "any";
+		type = typeof itemsType === "string" ? `${itemsType}[]` : "any[]";
+	} else if (schema.type === "object") {
+		type = "any"; // Could be enhanced to generate nested definitions
+	} else type = "any";
+	return { name, type, optional: false };
+}
+
+function capitalize(str: string): string {
+	return str.charAt(0).toUpperCase() + str.slice(1);
+}
+
+export function composePlugins(
+	...plugins: ((definitions: EndpointDefinition[]) => EndpointDefinition[])[]
+): (definitions: EndpointDefinition[]) => EndpointDefinition[] {
+	return (definitions) =>
+		plugins.reduce((defs, plugin) => plugin(defs), definitions);
+}
+
+export function createPlugin(
+	options:
+		| {
+				name: string;
+				selector?: (def: EndpointDefinition) => boolean;
+				verbose?: boolean;
+		  }
+		| string,
+	transform: (
+		definition: EndpointDefinition,
+		index: number,
+		allDefinitions: EndpointDefinition[],
+	) => EndpointDefinition,
+): (definitions: EndpointDefinition[]) => EndpointDefinition[] {
+	const {
+		name,
+		selector = () => true,
+		verbose = true,
+	} = typeof options === "string" ? { name: options } : options;
+
+	return (definitions) => {
+		if (verbose) console.log(`Applying plugin: ${name}`);
+		return definitions.map((def, index, all) =>
+			selector(def) ? transform(def, index, all) : def,
+		);
+	};
+}

@@ -1,6 +1,6 @@
 {
   "name": "encore-better-auth",
-  "version": "0.1.0",
+  "version": "0.1.2-beta.2",
   "description": "The most comprehensive authentication library for Encore TS based on BetterAuth.",
   "type": "module",
   "repository": {
@@ -70,7 +70,7 @@
   },
   "dependencies": {
     "better-auth": "1.2.1-beta.6",
-    "encore.dev": "^1.46.3",
+    "encore.dev": "^1.46.6",
     "zod": "^3.24.2"
   },
   "peerDependencies": {
