@@ -70,7 +70,7 @@
   },
   "dependencies": {
     "better-auth": "1.2.1-beta.6",
-    "encore.dev": "^1.46.3",
+    "encore.dev": "^1.46.6",
     "zod": "^3.24.2"
   },
   "peerDependencies": {

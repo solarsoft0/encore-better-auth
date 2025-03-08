@@ -2,31 +2,15 @@ import { getEndpoints } from "better-auth/api";
 import type { Endpoint, EndpointOptions } from "better-call";
 import type { AuthContext, BetterAuthOptions, ZodType } from "better-auth";
 import { extractZodFields } from "./zod-utils";
+import type {
+	EndpointDefinition,
+	FieldDefinition,
+	TypeDefinition,
+} from "../types";
 
 interface GeneratorOptions {
 	wrapResponse: boolean;
-	overrides?: Record<
-		string,
-		{
-			paramsType?: string;
-			responseType?: string;
-			middleware?: string[];
-		}
-	>;
 	plugins?: ((definitions: EndpointDefinition[]) => EndpointDefinition[])[];
-}
-
-type FieldDefinition = { name: string; type: string; optional: boolean };
-type TypeDefinition = FieldDefinition[] | string;
-
-interface EndpointDefinition {
-	name: string;
-	path: string;
-	methods: string[];
-	middleware: string[];
-	params: TypeDefinition;
-	response: TypeDefinition;
-	comment: string;
 }
 
 export async function generateEncoreRoutes(
@@ -34,25 +18,19 @@ export async function generateEncoreRoutes(
 	authOptions: BetterAuthOptions,
 	genOptions: GeneratorOptions,
 ): Promise<string> {
-	const { wrapResponse, overrides = {}, plugins = [] } = genOptions;
+	const { wrapResponse, plugins = [] } = genOptions;
 
 	const endpoints = getEndpoints(ctx, authOptions).api;
 
 	let endpointDefinitions: EndpointDefinition[] = Object.entries(endpoints)
-		// @ts-ignore
+	// @ts-ignore
 		.filter(([, ep]) => ep && !ep.options?.metadata?.SERVER_ONLY)
 		.map(([name, endpoint]) =>
-			buildEndpointDefinition(
-				name,
-				endpoint,
-				authOptions,
-				overrides
-			),
+			buildEndpointDefinition(name, endpoint, authOptions),
 		);
 
-	for (const plugin of plugins) {
-		endpointDefinitions = plugin(endpointDefinitions);
-	}
+	// Apply plugins in sequence
+	endpointDefinitions = composePlugins(...plugins)(endpointDefinitions);
 
 	return generateCodeFromDefinitions(endpointDefinitions, wrapResponse);
 }
@@ -61,34 +39,62 @@ function buildEndpointDefinition(
 	name: string,
 	endpoint: Endpoint,
 	_authOptions: BetterAuthOptions,
-	overrides: GeneratorOptions["overrides"],
 ): EndpointDefinition {
 	const { path, options } = endpoint;
-
-	const override = overrides?.[name] || {};
-
-	const methods = normalizeMethods(options.method);
-	const middleware = [path]; // middlewares uses paths for matching.
-	const params = buildParams(endpoint, override.paramsType);
-	const response = buildResponse(endpoint, override.responseType);
-	const comment = buildComment(options);
-
 	return {
 		name,
 		path,
-		methods,
-		middleware,
-		params,
-		response,
-		comment,
+		methods: normalizeMethods(options.method),
+		middleware: [path],
+		params: buildParams(endpoint),
+		response: buildResponse(endpoint),
+		comment: buildComment(options),
 	};
 }
-/**
- * Generates code and parameter signature for params.
- * - String: Uses it as the type.
- * - Array with fields: Generates an interface.
- * - Empty array: Omits the parameter.
- */
+
+function generateTypeCode(
+	fields: FieldDefinition[],
+	typeName: string,
+	indentLevel: number = 0,
+	generatedTypes: Set<string> = new Set(),
+): string {
+	if (generatedTypes.has(typeName)) return "";
+	generatedTypes.add(typeName);
+
+	const indent = "  ".repeat(indentLevel);
+	const fieldLines: string[] = [];
+	let nestedDefinitions = "";
+
+	fields.forEach((field) => {
+		const fieldIndent = "  ".repeat(indentLevel + 1);
+		if (typeof field.type === "string") {
+			fieldLines.push(
+				`${fieldIndent}${field.name}${field.optional ? "?" : ""}: ${
+					field.type
+				}`,
+			);
+		} else {
+			const nestedTypeName = `${typeName}${capitalize(field.name)}`;
+			fieldLines.push(
+				`${fieldIndent}${field.name}${
+					field.optional ? "?" : ""
+				}: ${nestedTypeName}`,
+			);
+			nestedDefinitions += generateTypeCode(
+				field.type,
+				nestedTypeName,
+				0,
+				generatedTypes,
+			);
+		}
+	});
+
+	const typeCode = `${indent}interface ${typeName} {\n${fieldLines.join(
+		"\n",
+	)}\n${indent}}`;
+	return `${nestedDefinitions}${nestedDefinitions ? "\n" : ""}${typeCode}`;
+}
+
 function getParamsCodeAndType(
 	paramsDef: TypeDefinition,
 	baseName: string,
@@ -97,18 +103,18 @@ function getParamsCodeAndType(
 		return {
 			code: "",
 			paramsPart: `params: ${paramsDef}`,
-			baseTypeName: baseName,
+			baseTypeName: paramsDef,
 		};
 	} else if (paramsDef.length > 0) {
 		const baseTypeName = `${capitalize(baseName)}Params`;
-		const fields = paramsDef
-			.map((p) => `  ${p.name}${p.optional ? "?" : ""}: ${p.type}`)
-			.join("\n");
-		const code = `interface ${baseTypeName} {\n${fields}\n}\n`;
-		return { code, paramsPart: `params: ${baseTypeName}`, baseTypeName };
-	} else {
-		return { code: "", paramsPart: "", baseTypeName: "" };
+		const code = generateTypeCode(paramsDef, baseTypeName);
+		return {
+			code: code ? `${code}\n` : "",
+			paramsPart: `params: ${baseTypeName}`,
+			baseTypeName,
+		};
 	}
+	return { code: "", paramsPart: "", baseTypeName: "" };
 }
 
 function getResponseCodeAndType(
@@ -119,20 +125,24 @@ function getResponseCodeAndType(
 	if (responseDef === "void") {
 		return { code: "", responseType: "{ data: any }", baseTypeName: "" };
 	}
+
 	let baseType: string;
 	let code = "";
+
 	if (typeof responseDef === "string") {
 		baseType = responseDef;
 	} else {
 		const typeName = `${capitalize(baseName)}Response`;
-		const fields = responseDef
-			.map((f) => `  ${f.name}${f.optional ? "?" : ""}: ${f.type}`)
-			.join("\n");
-		code = `type ${typeName} = {\n${fields}\n};\n`;
+		code = generateTypeCode(responseDef, typeName);
 		baseType = typeName;
 	}
+
 	const finalType = wrapInData ? `{ data: ${baseType} }` : baseType;
-	return { code, responseType: finalType, baseTypeName: baseType };
+	return {
+		code: code ? `${code}\n` : "",
+		responseType: finalType,
+		baseTypeName: baseType,
+	};
 }
 
 function generateCodeFromDefinitions(
@@ -141,11 +151,12 @@ function generateCodeFromDefinitions(
 ): string {
 	let code = `import { api } from "encore.dev/api";\n`;
 	code += `import { auth } from './encore.service';\n\n`;
+
 	for (const def of definitions) {
 		const {
 			code: paramsCode,
 			paramsPart,
-			baseTypeName: paramsbaseTypeName,
+			baseTypeName: paramsBaseTypeName,
 		} = getParamsCodeAndType(def.params, def.name);
 		code += paramsCode;
 
@@ -154,36 +165,35 @@ function generateCodeFromDefinitions(
 			def.name,
 			wrapResponse,
 		);
-		code += responseCode;
+		// Add a single newline between params and response types if both exist
+		code += paramsCode && responseCode ? `${responseCode}\n` : responseCode;
 
 		const apiConfig = buildApiConfig(def);
-
 		const adjustedParamsPart =
-			def.methods.includes("GET") && def.methods.length === 1 && !!paramsbaseTypeName
-				? `_: ${paramsbaseTypeName}`
+			def.methods.includes("GET") &&
+			def.methods.length === 1 &&
+			paramsBaseTypeName
+				? `_: ${paramsBaseTypeName}`
 				: paramsPart;
 
-		// Construct function parameters
 		const asyncParams = adjustedParamsPart ? `(${adjustedParamsPart})` : "()";
 		const handlerParams =
-			(def.methods.includes("GET") && def.methods.length === 1) || asyncParams == "()"
-				? `()`
-				: `(params)`;
+			(def.methods.includes("GET") && def.methods.length === 1) ||
+			asyncParams === "()"
+				? "()"
+				: "(params)";
 
-
-		// Assemble the endpoint code
 		code += `
 ${def.comment}
 export const ${def.name} = api(
-  { ${apiConfig.join(", ")} },
-  async ${asyncParams}: Promise<${responseType}> => {
-    // Using "as" to ignore response inconsistency from OpenAPI, to be resolved with PR https://github.com/better-auth/better-auth/pull/1699
-    return await auth.routeHandlers.${
-			def.name
-		}${handlerParams} as ${responseType};
-  }
-);
-`;
+    { ${apiConfig.join(", ")} },
+    async ${asyncParams}: Promise<${responseType}> => {
+        // Using "as" to ignore response inconsistency from OpenAPI, to be resolved with PR https://github.com/better-auth/better-auth/pull/1699
+        return await auth.routeHandlers.${
+					def.name
+				}${handlerParams} as ${responseType};
+    }
+);\n\n`; // Two newlines for larger gap between routes
 	}
 
 	return code.trim();
@@ -208,14 +218,7 @@ function buildApiConfig({
 	].filter(Boolean);
 }
 
-function buildParams(
-	endpoint: Endpoint,
-	overrideType: string | undefined,
-): TypeDefinition {
-	if (overrideType) {
-		return overrideType;
-	}
-
+function buildParams(endpoint: Endpoint): TypeDefinition {
 	const { path, options } = endpoint;
 	const pathParams = extractPathParams(path);
 	const queryFields = options.query
@@ -226,14 +229,12 @@ function buildParams(
 		: [];
 	const openApiParams = options.metadata?.openapi?.parameters || [];
 
-	// Convert path params to field definitions
 	const pathParamFields = pathParams.map((param) => ({
 		name: param,
 		type: "string",
 		optional: false,
 	}));
 
-	// Convert OpenAPI parameters to field definitions
 	const openApiFields = openApiParams.map((param) => {
 		const fieldDef = convertOpenAPISchemaToFieldDefinition(
 			param.schema,
@@ -243,7 +244,6 @@ function buildParams(
 		return fieldDef;
 	});
 
-	// Combine all field definitions
 	return [
 		...pathParamFields,
 		...queryFields,
@@ -252,22 +252,12 @@ function buildParams(
 	].filter((f, i, self) => self.findIndex((ff) => ff.name === f.name) === i);
 }
 
-function buildResponse(
-	endpoint: Endpoint,
-	overrideType: string | undefined,
-): TypeDefinition {
-	if (overrideType) {
-		return overrideType;
-	}
-
+function buildResponse(endpoint: Endpoint): TypeDefinition {
 	const schema =
 		endpoint.options.metadata?.openapi?.responses?.["200"]?.content?.[
 			"application/json"
 		]?.schema;
-
-	if (!schema) return "void";
-
-	return convertOpenAPISchemaToFieldDefinitions(schema);
+	return schema ? convertOpenAPISchemaToFieldDefinitions(schema) : "void";
 }
 
 function buildComment(options: EndpointOptions): string {
@@ -280,40 +270,22 @@ function extractPathParams(path: string): string[] {
 
 function convertOpenAPISchemaToFieldDefinitions(schema: any): TypeDefinition {
 	if (!schema) return "any";
-
-	// Handle primitive types directly
-	if (
-		schema.type === "string" ||
-		schema.type === "number" ||
-		schema.type === "integer" ||
-		schema.type === "boolean"
-	) {
+	if (["string", "number", "integer", "boolean"].includes(schema.type)) {
 		return schema.type === "integer" ? "number" : schema.type;
 	}
-
-	// Handle array type
 	if (schema.type === "array") {
 		const itemsType = convertOpenAPISchemaToFieldDefinitions(schema.items);
-		if (typeof itemsType === "string") {
-			return `${itemsType}[]`;
-		}
-		return "any";
+		return typeof itemsType === "string" ? `${itemsType}[]` : "any";
 	}
-
-	// Handle object type
 	if (schema.type === "object") {
 		const props = schema.properties || {};
 		const required = schema.required || [];
-
-		// Convert each property to a field definition
 		return Object.entries(props).map(([key, prop]) => {
 			const fieldDef = convertOpenAPISchemaToFieldDefinition(prop, key);
 			fieldDef.optional = !required.includes(key);
 			return fieldDef;
 		});
 	}
-
-	// Default case
 	return "any";
 }
 
@@ -322,31 +294,58 @@ function convertOpenAPISchemaToFieldDefinition(
 	name: string,
 ): FieldDefinition {
 	let type: string;
-
-	if (!schema) {
-		type = "any";
-	} else if (schema.type === "string") {
-		type = "string";
-	} else if (schema.type === "number" || schema.type === "integer") {
+	if (!schema) type = "any";
+	else if (schema.type === "string") type = "string";
+	else if (schema.type === "number" || schema.type === "integer")
 		type = "number";
-	} else if (schema.type === "boolean") {
-		type = "boolean";
-	} else if (schema.type === "array") {
+	else if (schema.type === "boolean") type = "boolean";
+	else if (schema.type === "array") {
 		const itemsType =
 			typeof schema.items === "object"
 				? convertOpenAPISchemaToFieldDefinitions(schema.items)
 				: "any";
 		type = typeof itemsType === "string" ? `${itemsType}[]` : "any[]";
 	} else if (schema.type === "object") {
-		console.log(schema, "from schema", name);
-		type = "any";
-	} else {
-		type = "any";
-	}
-
+		type = "any"; // Could be enhanced to generate nested definitions
+	} else type = "any";
 	return { name, type, optional: false };
 }
 
 function capitalize(str: string): string {
 	return str.charAt(0).toUpperCase() + str.slice(1);
+}
+
+export function composePlugins(
+	...plugins: ((definitions: EndpointDefinition[]) => EndpointDefinition[])[]
+): (definitions: EndpointDefinition[]) => EndpointDefinition[] {
+	return (definitions) =>
+		plugins.reduce((defs, plugin) => plugin(defs), definitions);
+}
+
+export function createPlugin(
+	options:
+		| {
+				name: string;
+				selector?: (def: EndpointDefinition) => boolean;
+				verbose?: boolean;
+		  }
+		| string,
+	transform: (
+		definition: EndpointDefinition,
+		index: number,
+		allDefinitions: EndpointDefinition[],
+	) => EndpointDefinition,
+): (definitions: EndpointDefinition[]) => EndpointDefinition[] {
+	const {
+		name,
+		selector = () => true,
+		verbose = true,
+	} = typeof options === "string" ? { name: options } : options;
+
+	return (definitions) => {
+		if (verbose) console.log(`Applying plugin: ${name}`);
+		return definitions.map((def, index, all) =>
+			selector(def) ? transform(def, index, all) : def,
+		);
+	};
 }

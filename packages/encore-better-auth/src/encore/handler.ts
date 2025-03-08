@@ -78,7 +78,9 @@ export const createEncoreAPIHandler = async (
 					return wrapResponse ? { data: pluginResponse } : pluginResponse;
 				}
 				if (pluginResponse && "response" in pluginResponse) {
-					return wrapResponse ? { data: pluginResponse.response } : pluginResponse.response;
+					return wrapResponse
+						? { data: pluginResponse.response }
+						: pluginResponse.response;
 				}
 			}
 		}
@@ -163,7 +165,6 @@ function createErrorResponse(error: any) {
 	};
 }
 
-
 // Middleware creation function
 export function createEncoreMiddlewares(
 	middlewares: Array<{
@@ -183,8 +184,6 @@ export function createEncoreMiddlewares(
 					: undefined;
 			if (!meta || meta.type !== "api-call") throw Error;
 
-			log.debug("preparing context", meta);
-
 			const { context } = await prepareRequestContext(
 				meta,
 				authContext,
@@ -194,8 +193,6 @@ export function createEncoreMiddlewares(
 			await originCheckMiddleware(context);
 
 			req.data.betterAuthRequestContext = context;
-
-			log.debug(meta.path, "from middle ware");
 
 			return next(req);
 		}),
@@ -212,12 +209,6 @@ export function createEncoreMiddlewares(
 					{ target: { expose: true, tags: [path] } },
 					async (req: MiddlewareRequest, next: Next) => {
 						const meta = req.requestMeta as APICallMeta;
-						console.log(
-							path,
-							"this two should match pattern to run",
-							meta.path,
-							"from middle ware",
-						);
 
 						const context = meta.middlewareData?.betterAuthRequestContext;
 						await mw(context);
@@ -229,38 +220,73 @@ export function createEncoreMiddlewares(
 				),
 		),
 
-		// Default after middleware to unwrap HandlerResponseWrapper
 		middleware({ target: { expose: true } }, async (req, next) => {
-			const meta = req.requestMeta as APICallMeta;
+			const wrapResponse = options.wrapResponse;
 
 			const wrappedResponse = await next(req);
-			const wrapper = wrappedResponse.payload;
-			if (!wrapper || typeof wrapper !== "object" || !("response" in wrapper)) {
-				return wrappedResponse; // Fallback if not a wrapper
+			const incomingPayload = wrappedResponse.payload;
+
+			const { content, headers } = extractPayload(
+				incomingPayload,
+				wrapResponse,
+			);
+			if (content === null) {
+				throw Error("invalid payload")
 			}
 
-			const { response, headers } = wrapper as {
-				headers: Headers;
-				response: any;
-			};
+			mergeHeaders(wrappedResponse, headers);
 
-			// Merge headers into response
-			if (response.headers) {
-				log.debug("old header", meta.headers);
-				log.debug("new header", headers);
-				response.headers.forEach((value: string, key: string) => {
-					if (key === "set-cookie") {
-						console.log(value, key, "cookies needs attention");
-						// wrappedResponse.header.headers.append(key, value);
-					} else if (!response.header.has(key)) {
-						wrappedResponse.header.set(key, value);
-					}
-				});
-			}
-
-			wrappedResponse.payload = response;
+			wrappedResponse.payload = formatPayload(content, wrapResponse);
 
 			return wrappedResponse;
 		}),
 	];
+}
+function extractPayload(
+	payload: any,
+	wrapResponse: boolean,
+): { content: any; headers: Headers | null } {
+	if (!payload || typeof payload !== "object") {
+		return { content: null, headers: null };
+	}
+
+	if (wrapResponse) {
+		// Expect { data: { response: ..., headers: ... } }
+		if (
+			!("data" in payload) ||
+			typeof payload.data !== "object" ||
+			!("response" in payload.data)
+		) {
+			return { content: null, headers: null };
+		}
+		return {
+			content: payload.data.response,
+			headers: payload.data.headers || null,
+		};
+	} else {
+		// Expect { response: ..., headers: ... }
+		if (!("response" in payload)) {
+			return { content: null, headers: null };
+		}
+		return {
+			content: payload.response,
+			headers: payload.headers || null,
+		};
+	}
+}
+function mergeHeaders(wrappedResponse: any, headers: Headers | null): void {
+	if (!headers) return;
+
+	headers.forEach((value: string, key: string) => {
+		if (key === "set-cookie") {
+			console.log(value, key, "cookies needs attention");
+			// wrappedResponse.header.headers.append(key, value); // Uncomment for cookie handling
+		} else if (!wrappedResponse.header.has(key)) {
+			wrappedResponse.header.set(key, value);
+		}
+	});
+}
+
+function formatPayload(content: any, wrapResponse: boolean): any {
+	return wrapResponse ? { data: content } : content;
 }

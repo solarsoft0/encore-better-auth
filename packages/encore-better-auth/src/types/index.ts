@@ -37,12 +37,12 @@ export type EncoreEndpointFn<
 	: never;
 
 export type EncoreBetterAuthOptions = BetterAuthOptions & {
-		// Set to true to comply with Encore's technical limitation. Without this, route generation won't work. It also enables us to not worry too much about OpenAPI spec updates on BetterAuth's end.
-		wrapResponse: boolean;
-		generateRoutes?: boolean;
-		outputPath?: string; // Allows specifying where to save the routes file
-		currentRequest: () => RequestMeta | undefined; // function to geet currentRequest (this not available in encore.dev)
-	};
+	// Set to true to comply with Encore's technical limitation. Without this, route generation won't work. It also enables us to not worry too much about OpenAPI spec updates on BetterAuth's end.
+	wrapResponse: boolean;
+	generateRoutes?: boolean;
+	outputPath?: string; // Allows specifying where to save the routes file
+	currentRequest: () => RequestMeta | undefined; // function to geet currentRequest (this not available in encore.dev)
+};
 
 export type BetterAuthReturn<O extends BetterAuthOptions> = ReturnType<
 	typeof betterAuth<O>
@@ -68,3 +68,20 @@ export type EncoreRouteHandlers<
 > = {
 	[K in keyof T]: EncoreEndpointFn<T[K], O>;
 };
+
+export type FieldDefinition = {
+	name: string;
+	type: string | FieldDefinition[];
+	optional: boolean;
+};
+export type TypeDefinition = FieldDefinition[] | string;
+
+export interface EndpointDefinition {
+	name: string;
+	path: string;
+	methods: string[];
+	middleware: string[];
+	params: TypeDefinition;
+	response: TypeDefinition;
+	comment: string;
+}

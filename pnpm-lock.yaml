@@ -60,8 +60,8 @@ importers:
         specifier: link:../../packages/encore-better-auth
         version: link:../../packages/encore-better-auth
       encore.dev:
-        specifier: ^1.46.3
-        version: 1.46.5
+        specifier: ^1.46.6
+        version: 1.46.6
       zod:
         specifier: ^3.24.2
         version: 3.24.2
@@ -89,8 +89,8 @@ importers:
         specifier: 1.2.1-beta.6
         version: 1.2.1-beta.6(encoding@0.1.13)(typescript@5.8.2)
       encore.dev:
-        specifier: ^1.46.3
-        version: 1.46.5
+        specifier: ^1.46.6
+        version: 1.46.6
       zod:
         specifier: ^3.24.2
         version: 3.24.2
@@ -1109,8 +1109,8 @@ packages:
   encoding@0.1.13:
     resolution: {integrity: sha512-ETBauow1T35Y/WZMkio9jiM0Z5xjHHmJ4XmjZOq1l/dXz3lr2sRn87nJy20RupqSh1F2m3HHPSp8ShIPQJrJ3A==}
 
-  encore.dev@1.46.5:
-    resolution: {integrity: sha512-IFG/HOzbJWe6zINx5W4cB9ZGkDt/5pianNz9GRyNplU/d8IkdQtL0CWUTIYSy4xei/Zq6KI0cX3k+bIfk+wlpw==}
+  encore.dev@1.46.6:
+    resolution: {integrity: sha512-LX2eZXCdiF1qV9vvchZlx5RXU4I8c1AtFPVStAT0bo4YBT1mTGB+JJkl1q7NMr4yzFW+gJtFJONyb3hDyZcE7w==}
     engines: {node: '>=18.0.0'}
 
   entities@4.5.0:
@@ -2749,7 +2749,7 @@ snapshots:
       iconv-lite: 0.6.3
     optional: true
 
-  encore.dev@1.46.5: {}
+  encore.dev@1.46.6: {}
 
   entities@4.5.0: {}
 
