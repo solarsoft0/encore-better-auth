@@ -2,6 +2,7 @@ import type { betterAuth, BetterAuthOptions, Endpoint } from "better-auth";
 import type { getEndpoints } from "better-auth/api";
 import type { RequestMeta } from "encore.dev";
 import type { Middleware } from "encore.dev/api";
+import type { GeneratorPlugin } from '../generator/plugin';
 
 // export type EncoreEndpointFn<T extends Endpoint<any>> = T extends Endpoint<
 //     any,
@@ -37,12 +38,13 @@ export type EncoreEndpointFn<
 	: never;
 
 export type EncoreBetterAuthOptions = BetterAuthOptions & {
-	// Set to true to comply with Encore's technical limitation. Without this, route generation won't work. It also enables us to not worry too much about OpenAPI spec updates on BetterAuth's end.
-	wrapResponse: boolean;
-	generateRoutes?: boolean;
-	outputPath?: string; // Allows specifying where to save the routes file
-	currentRequest: () => RequestMeta | undefined; // function to geet currentRequest (this not available in encore.dev)
-};
+		// Set to true to comply with Encore's technical limitation. Without this, route generation won't work. It also enables us to not worry too much about OpenAPI spec updates on BetterAuth's end.
+		wrapResponse: boolean;
+		generateRoutes?: boolean;
+		generatorPlugins?: GeneratorPlugin[];
+		outputPath?: string; // Allows specifying where to save the routes file
+		currentRequest: () => RequestMeta | undefined; // function to geet currentRequest (this not available in encore.dev)
+	};
 
 export type BetterAuthReturn<O extends BetterAuthOptions> = ReturnType<
 	typeof betterAuth<O>

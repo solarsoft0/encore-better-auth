@@ -1,3 +1,6 @@
+/**
+	 * WARNING: This file is generated automatically. Do not edit. use/create generator plugins to override.
+	 */
 import { api } from "encore.dev/api";
 import { auth } from './encore.service';
 
@@ -21,7 +24,7 @@ interface SignInSocialResponse {
 
 // Sign in with a social provider
 export const signInSocial = api(
-    { method: ["POST"], path: "/sign-in/social", expose: true, tags: ["/sign-in/social"] },
+    { method: ["POST"], path: "/auth/sign-in/social", expose: true, tags: ["/sign-in/social"] },
     async (params: SignInSocialParams): Promise<{ data: SignInSocialResponse }> => {
         // Using "as" to ignore response inconsistency from OpenAPI, to be resolved with PR https://github.com/better-auth/better-auth/pull/1699
         return await auth.routeHandlers.signInSocial(params) as { data: SignInSocialResponse };
@@ -39,7 +42,7 @@ interface CallbackOAuthParams {
 
 // API endpoint
 export const callbackOAuth = api(
-    { method: ["GET", "POST"], path: "/callback/:id", expose: true, tags: ["/callback/:id"] },
+    { method: ["GET", "POST"], path: "/auth/callback/:id", expose: true, tags: ["/callback/:id"] },
     async (params: CallbackOAuthParams): Promise<{ data: any }> => {
         // Using "as" to ignore response inconsistency from OpenAPI, to be resolved with PR https://github.com/better-auth/better-auth/pull/1699
         return await auth.routeHandlers.callbackOAuth(params) as { data: any };
@@ -53,7 +56,7 @@ interface GetSessionResponse {
 
 // Get the current session
 export const getSession = api(
-    { method: ["GET"], path: "/get-session", expose: true, tags: ["/get-session"] },
+    { method: ["GET"], path: "/auth/get-session", expose: true, tags: ["/get-session"] },
     async (): Promise<{ data: GetSessionResponse }> => {
         // Using "as" to ignore response inconsistency from OpenAPI, to be resolved with PR https://github.com/better-auth/better-auth/pull/1699
         return await auth.routeHandlers.getSession() as { data: GetSessionResponse };
@@ -66,7 +69,7 @@ interface SignOutResponse {
 
 // Sign out the current user
 export const signOut = api(
-    { method: ["POST"], path: "/sign-out", expose: true, tags: ["/sign-out"] },
+    { method: ["POST"], path: "/auth/sign-out", expose: true, tags: ["/sign-out"] },
     async (): Promise<{ data: SignOutResponse }> => {
         // Using "as" to ignore response inconsistency from OpenAPI, to be resolved with PR https://github.com/better-auth/better-auth/pull/1699
         return await auth.routeHandlers.signOut() as { data: SignOutResponse };
@@ -77,6 +80,8 @@ interface SignUpEmailParams {
   name: string
   email: string
   password: string
+  username?: string
+  displayUsername?: string
 }
 interface SignUpEmailResponseUser {
   id: string
@@ -86,6 +91,8 @@ interface SignUpEmailResponseUser {
   emailVerified: boolean
   createdAt: Date
   updatedAt: Date
+  username?: string
+  displayUsername?: string
 }
 interface SignUpEmailResponse {
   token: null
@@ -95,7 +102,7 @@ interface SignUpEmailResponse {
 
 // Sign up a user using email and password
 export const signUpEmail = api(
-    { method: ["POST"], path: "/sign-up/email", expose: true, tags: ["/sign-up/email"] },
+    { method: ["POST"], path: "/auth/sign-up/email", expose: true, tags: ["/sign-up/email"] },
     async (params: SignUpEmailParams): Promise<{ data: SignUpEmailResponse }> => {
         // Using "as" to ignore response inconsistency from OpenAPI, to be resolved with PR https://github.com/better-auth/better-auth/pull/1699
         return await auth.routeHandlers.signUpEmail(params) as { data: SignUpEmailResponse };
@@ -117,7 +124,7 @@ interface SignInEmailResponse {
 
 // Sign in with email and password
 export const signInEmail = api(
-    { method: ["POST"], path: "/sign-in/email", expose: true, tags: ["/sign-in/email"] },
+    { method: ["POST"], path: "/auth/sign-in/email", expose: true, tags: ["/sign-in/email"] },
     async (params: SignInEmailParams): Promise<{ data: SignInEmailResponse }> => {
         // Using "as" to ignore response inconsistency from OpenAPI, to be resolved with PR https://github.com/better-auth/better-auth/pull/1699
         return await auth.routeHandlers.signInEmail(params) as { data: SignInEmailResponse };
@@ -135,7 +142,7 @@ interface ForgetPasswordResponse {
 
 // Send a password reset email to the user
 export const forgetPassword = api(
-    { method: ["POST"], path: "/forget-password", expose: true, tags: ["/forget-password"] },
+    { method: ["POST"], path: "/auth/forget-password", expose: true, tags: ["/forget-password"] },
     async (params: ForgetPasswordParams): Promise<{ data: ForgetPasswordResponse }> => {
         // Using "as" to ignore response inconsistency from OpenAPI, to be resolved with PR https://github.com/better-auth/better-auth/pull/1699
         return await auth.routeHandlers.forgetPassword(params) as { data: ForgetPasswordResponse };
@@ -153,7 +160,7 @@ interface ResetPasswordResponse {
 
 // Reset the password for a user
 export const resetPassword = api(
-    { method: ["POST"], path: "/reset-password", expose: true, tags: ["/reset-password"] },
+    { method: ["POST"], path: "/auth/reset-password", expose: true, tags: ["/reset-password"] },
     async (params: ResetPasswordParams): Promise<{ data: ResetPasswordResponse }> => {
         // Using "as" to ignore response inconsistency from OpenAPI, to be resolved with PR https://github.com/better-auth/better-auth/pull/1699
         return await auth.routeHandlers.resetPassword(params) as { data: ResetPasswordResponse };
@@ -172,7 +179,7 @@ interface VerifyEmailResponse {
 
 // Verify the email of the user
 export const verifyEmail = api(
-    { method: ["GET"], path: "/verify-email", expose: true, tags: ["/verify-email"] },
+    { method: ["GET"], path: "/auth/verify-email", expose: true, tags: ["/verify-email"] },
     async (_: VerifyEmailParams): Promise<{ data: VerifyEmailResponse }> => {
         // Using "as" to ignore response inconsistency from OpenAPI, to be resolved with PR https://github.com/better-auth/better-auth/pull/1699
         return await auth.routeHandlers.verifyEmail() as { data: VerifyEmailResponse };
@@ -190,7 +197,7 @@ interface SendVerificationEmailResponse {
 
 // Send a verification email to the user
 export const sendVerificationEmail = api(
-    { method: ["POST"], path: "/send-verification-email", expose: true, tags: ["/send-verification-email"] },
+    { method: ["POST"], path: "/auth/send-verification-email", expose: true, tags: ["/send-verification-email"] },
     async (params: SendVerificationEmailParams): Promise<{ data: SendVerificationEmailResponse }> => {
         // Using "as" to ignore response inconsistency from OpenAPI, to be resolved with PR https://github.com/better-auth/better-auth/pull/1699
         return await auth.routeHandlers.sendVerificationEmail(params) as { data: SendVerificationEmailResponse };
@@ -209,7 +216,7 @@ interface ChangeEmailResponse {
 
 // API endpoint
 export const changeEmail = api(
-    { method: ["POST"], path: "/change-email", expose: true, tags: ["/change-email"] },
+    { method: ["POST"], path: "/auth/change-email", expose: true, tags: ["/change-email"] },
     async (params: ChangeEmailParams): Promise<{ data: ChangeEmailResponse }> => {
         // Using "as" to ignore response inconsistency from OpenAPI, to be resolved with PR https://github.com/better-auth/better-auth/pull/1699
         return await auth.routeHandlers.changeEmail(params) as { data: ChangeEmailResponse };
@@ -228,7 +235,7 @@ interface ChangePasswordResponse {
 
 // Change the password of the user
 export const changePassword = api(
-    { method: ["POST"], path: "/change-password", expose: true, tags: ["/change-password"] },
+    { method: ["POST"], path: "/auth/change-password", expose: true, tags: ["/change-password"] },
     async (params: ChangePasswordParams): Promise<{ data: ChangePasswordResponse }> => {
         // Using "as" to ignore response inconsistency from OpenAPI, to be resolved with PR https://github.com/better-auth/better-auth/pull/1699
         return await auth.routeHandlers.changePassword(params) as { data: ChangePasswordResponse };
@@ -238,6 +245,8 @@ export const changePassword = api(
 interface UpdateUserParams {
   name?: string
   image?: string | null
+  username?: string
+  displayUsername?: string
 }
 interface UpdateUserResponse {
   status: boolean
@@ -246,7 +255,7 @@ interface UpdateUserResponse {
 
 // Update the current user
 export const updateUser = api(
-    { method: ["POST"], path: "/update-user", expose: true, tags: ["/update-user"] },
+    { method: ["POST"], path: "/auth/update-user", expose: true, tags: ["/update-user"] },
     async (params: UpdateUserParams): Promise<{ data: UpdateUserResponse }> => {
         // Using "as" to ignore response inconsistency from OpenAPI, to be resolved with PR https://github.com/better-auth/better-auth/pull/1699
         return await auth.routeHandlers.updateUser(params) as { data: UpdateUserResponse };
@@ -265,7 +274,7 @@ interface DeleteUserResponse {
 
 // Delete the user
 export const deleteUser = api(
-    { method: ["POST"], path: "/delete-user", expose: true, tags: ["/delete-user"] },
+    { method: ["POST"], path: "/auth/delete-user", expose: true, tags: ["/delete-user"] },
     async (params: DeleteUserParams): Promise<{ data: DeleteUserResponse }> => {
         // Using "as" to ignore response inconsistency from OpenAPI, to be resolved with PR https://github.com/better-auth/better-auth/pull/1699
         return await auth.routeHandlers.deleteUser(params) as { data: DeleteUserResponse };
@@ -283,7 +292,7 @@ interface ForgetPasswordCallbackResponse {
 
 // Redirects the user to the callback URL with the token
 export const forgetPasswordCallback = api(
-    { method: ["GET"], path: "/reset-password/:token", expose: true, tags: ["/reset-password/:token"] },
+    { method: ["GET"], path: "/auth/reset-password/:token", expose: true, tags: ["/reset-password/:token"] },
     async (_: ForgetPasswordCallbackParams): Promise<{ data: ForgetPasswordCallbackResponse }> => {
         // Using "as" to ignore response inconsistency from OpenAPI, to be resolved with PR https://github.com/better-auth/better-auth/pull/1699
         return await auth.routeHandlers.forgetPasswordCallback() as { data: ForgetPasswordCallbackResponse };
@@ -293,7 +302,7 @@ export const forgetPasswordCallback = api(
 
 // List all active sessions for the user
 export const listSessions = api(
-    { method: ["GET"], path: "/list-sessions", expose: true, tags: ["/list-sessions"] },
+    { method: ["GET"], path: "/auth/list-sessions", expose: true, tags: ["/list-sessions"] },
     async (): Promise<{ data: any }> => {
         // Using "as" to ignore response inconsistency from OpenAPI, to be resolved with PR https://github.com/better-auth/better-auth/pull/1699
         return await auth.routeHandlers.listSessions() as { data: any };
@@ -306,7 +315,7 @@ interface RevokeSessionParams {
 
 // Revoke a single session
 export const revokeSession = api(
-    { method: ["POST"], path: "/revoke-session", expose: true, tags: ["/revoke-session"] },
+    { method: ["POST"], path: "/auth/revoke-session", expose: true, tags: ["/revoke-session"] },
     async (params: RevokeSessionParams): Promise<{ data: any }> => {
         // Using "as" to ignore response inconsistency from OpenAPI, to be resolved with PR https://github.com/better-auth/better-auth/pull/1699
         return await auth.routeHandlers.revokeSession(params) as { data: any };
@@ -319,7 +328,7 @@ interface RevokeSessionsResponse {
 
 // Revoke all sessions for the user
 export const revokeSessions = api(
-    { method: ["POST"], path: "/revoke-sessions", expose: true, tags: ["/revoke-sessions"] },
+    { method: ["POST"], path: "/auth/revoke-sessions", expose: true, tags: ["/revoke-sessions"] },
     async (): Promise<{ data: RevokeSessionsResponse }> => {
         // Using "as" to ignore response inconsistency from OpenAPI, to be resolved with PR https://github.com/better-auth/better-auth/pull/1699
         return await auth.routeHandlers.revokeSessions() as { data: RevokeSessionsResponse };
@@ -332,7 +341,7 @@ interface RevokeOtherSessionsResponse {
 
 // Revoke all other sessions for the user except the current one
 export const revokeOtherSessions = api(
-    { method: ["POST"], path: "/revoke-other-sessions", expose: true, tags: ["/revoke-other-sessions"] },
+    { method: ["POST"], path: "/auth/revoke-other-sessions", expose: true, tags: ["/revoke-other-sessions"] },
     async (): Promise<{ data: RevokeOtherSessionsResponse }> => {
         // Using "as" to ignore response inconsistency from OpenAPI, to be resolved with PR https://github.com/better-auth/better-auth/pull/1699
         return await auth.routeHandlers.revokeOtherSessions() as { data: RevokeOtherSessionsResponse };
@@ -351,7 +360,7 @@ interface LinkSocialAccountResponse {
 
 // Link a social account to the user
 export const linkSocialAccount = api(
-    { method: ["POST"], path: "/link-social", expose: true, tags: ["/link-social"] },
+    { method: ["POST"], path: "/auth/link-social", expose: true, tags: ["/link-social"] },
     async (params: LinkSocialAccountParams): Promise<{ data: LinkSocialAccountResponse }> => {
         // Using "as" to ignore response inconsistency from OpenAPI, to be resolved with PR https://github.com/better-auth/better-auth/pull/1699
         return await auth.routeHandlers.linkSocialAccount(params) as { data: LinkSocialAccountResponse };
@@ -361,7 +370,7 @@ export const linkSocialAccount = api(
 
 // List all accounts linked to the user
 export const listUserAccounts = api(
-    { method: ["GET"], path: "/list-accounts", expose: true, tags: ["/list-accounts"] },
+    { method: ["GET"], path: "/auth/list-accounts", expose: true, tags: ["/list-accounts"] },
     async (): Promise<{ data: any }> => {
         // Using "as" to ignore response inconsistency from OpenAPI, to be resolved with PR https://github.com/better-auth/better-auth/pull/1699
         return await auth.routeHandlers.listUserAccounts() as { data: any };
@@ -375,7 +384,7 @@ interface DeleteUserCallbackParams {
 
 // API endpoint
 export const deleteUserCallback = api(
-    { method: ["GET"], path: "/delete-user/callback", expose: true, tags: ["/delete-user/callback"] },
+    { method: ["GET"], path: "/auth/delete-user/callback", expose: true, tags: ["/delete-user/callback"] },
     async (_: DeleteUserCallbackParams): Promise<{ data: any }> => {
         // Using "as" to ignore response inconsistency from OpenAPI, to be resolved with PR https://github.com/better-auth/better-auth/pull/1699
         return await auth.routeHandlers.deleteUserCallback() as { data: any };
@@ -388,10 +397,30 @@ interface UnlinkAccountParams {
 
 // API endpoint
 export const unlinkAccount = api(
-    { method: ["POST"], path: "/unlink-account", expose: true, tags: ["/unlink-account"] },
+    { method: ["POST"], path: "/auth/unlink-account", expose: true, tags: ["/unlink-account"] },
     async (params: UnlinkAccountParams): Promise<{ data: any }> => {
         // Using "as" to ignore response inconsistency from OpenAPI, to be resolved with PR https://github.com/better-auth/better-auth/pull/1699
         return await auth.routeHandlers.unlinkAccount(params) as { data: any };
+    }
+);
+
+interface SignInUsernameParams {
+  username: string
+  password: string
+  rememberMe?: boolean
+}
+interface SignInUsernameResponse {
+  user?: any
+  session?: any
+}
+
+
+// Sign in with username
+export const signInUsername = api(
+    { method: ["POST"], path: "/auth/sign-in/username", expose: true, tags: ["/sign-in/username"] },
+    async (params: SignInUsernameParams): Promise<{ data: SignInUsernameResponse }> => {
+        // Using "as" to ignore response inconsistency from OpenAPI, to be resolved with PR https://github.com/better-auth/better-auth/pull/1699
+        return await auth.routeHandlers.signInUsername(params) as { data: SignInUsernameResponse };
     }
 );
 
@@ -412,7 +441,7 @@ interface CreateApiKeyParams {
 
 // API endpoint
 export const createApiKey = api(
-    { method: ["POST"], path: "/api-key/create", expose: true, tags: ["/api-key/create"] },
+    { method: ["POST"], path: "/auth/api-key/create", expose: true, tags: ["/api-key/create"] },
     async (params: CreateApiKeyParams): Promise<{ data: any }> => {
         // Using "as" to ignore response inconsistency from OpenAPI, to be resolved with PR https://github.com/better-auth/better-auth/pull/1699
         return await auth.routeHandlers.createApiKey(params) as { data: any };
@@ -425,7 +454,7 @@ interface GetApiKeyParams {
 
 // API endpoint
 export const getApiKey = api(
-    { method: ["GET"], path: "/api-key/get", expose: true, tags: ["/api-key/get"] },
+    { method: ["GET"], path: "/auth/api-key/get", expose: true, tags: ["/api-key/get"] },
     async (_: GetApiKeyParams): Promise<{ data: any }> => {
         // Using "as" to ignore response inconsistency from OpenAPI, to be resolved with PR https://github.com/better-auth/better-auth/pull/1699
         return await auth.routeHandlers.getApiKey() as { data: any };
@@ -450,7 +479,7 @@ interface UpdateApiKeyParams {
 
 // API endpoint
 export const updateApiKey = api(
-    { method: ["POST"], path: "/api-key/update", expose: true, tags: ["/api-key/update"] },
+    { method: ["POST"], path: "/auth/api-key/update", expose: true, tags: ["/api-key/update"] },
     async (params: UpdateApiKeyParams): Promise<{ data: any }> => {
         // Using "as" to ignore response inconsistency from OpenAPI, to be resolved with PR https://github.com/better-auth/better-auth/pull/1699
         return await auth.routeHandlers.updateApiKey(params) as { data: any };
@@ -463,7 +492,7 @@ interface DeleteApiKeyParams {
 
 // API endpoint
 export const deleteApiKey = api(
-    { method: ["DELETE"], path: "/api-key/delete", expose: true, tags: ["/api-key/delete"] },
+    { method: ["DELETE"], path: "/auth/api-key/delete", expose: true, tags: ["/api-key/delete"] },
     async (params: DeleteApiKeyParams): Promise<{ data: any }> => {
         // Using "as" to ignore response inconsistency from OpenAPI, to be resolved with PR https://github.com/better-auth/better-auth/pull/1699
         return await auth.routeHandlers.deleteApiKey(params) as { data: any };
@@ -473,7 +502,7 @@ export const deleteApiKey = api(
 
 // API endpoint
 export const listApiKeys = api(
-    { method: ["GET"], path: "/api-key/list", expose: true, tags: ["/api-key/list"] },
+    { method: ["GET"], path: "/auth/api-key/list", expose: true, tags: ["/api-key/list"] },
     async (): Promise<{ data: any }> => {
         // Using "as" to ignore response inconsistency from OpenAPI, to be resolved with PR https://github.com/better-auth/better-auth/pull/1699
         return await auth.routeHandlers.listApiKeys() as { data: any };
@@ -486,7 +515,7 @@ interface OkResponse {
 
 // Check if the API is working
 export const ok = api(
-    { method: ["GET"], path: "/ok", expose: true, tags: ["/ok"] },
+    { method: ["GET"], path: "/auth/ok", expose: true, tags: ["/ok"] },
     async (): Promise<{ data: OkResponse }> => {
         // Using "as" to ignore response inconsistency from OpenAPI, to be resolved with PR https://github.com/better-auth/better-auth/pull/1699
         return await auth.routeHandlers.ok() as { data: OkResponse };
@@ -496,7 +525,7 @@ export const ok = api(
 
 // Displays an error page
 export const error = api(
-    { method: ["GET"], path: "/error", expose: true, tags: ["/error"] },
+    { method: ["GET"], path: "/auth/error", expose: true, tags: ["/error"] },
     async (): Promise<{ data: any }> => {
         // Using "as" to ignore response inconsistency from OpenAPI, to be resolved with PR https://github.com/better-auth/better-auth/pull/1699
         return await auth.routeHandlers.error() as { data: any };

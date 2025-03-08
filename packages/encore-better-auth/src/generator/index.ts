@@ -3,22 +3,22 @@ import type { Endpoint, EndpointOptions } from "better-call";
 import type { AuthContext, BetterAuthOptions, ZodType } from "better-auth";
 import { extractZodFields } from "./zod-utils";
 import type {
+	EncoreBetterAuthOptions,
 	EndpointDefinition,
 	FieldDefinition,
 	TypeDefinition,
 } from "../types";
 
 interface GeneratorOptions {
-	wrapResponse: boolean;
 	plugins?: ((definitions: EndpointDefinition[]) => EndpointDefinition[])[];
 }
 
 export async function generateEncoreRoutes(
 	ctx: Promise<AuthContext>,
-	authOptions: BetterAuthOptions,
+	authOptions: EncoreBetterAuthOptions,
 	genOptions: GeneratorOptions,
 ): Promise<string> {
-	const { wrapResponse, plugins = [] } = genOptions;
+	const { plugins = [] } = genOptions;
 
 	const endpoints = getEndpoints(ctx, authOptions).api;
 
@@ -29,10 +29,9 @@ export async function generateEncoreRoutes(
 			buildEndpointDefinition(name, endpoint, authOptions),
 		);
 
-	// Apply plugins in sequence
 	endpointDefinitions = composePlugins(...plugins)(endpointDefinitions);
 
-	return generateCodeFromDefinitions(endpointDefinitions, wrapResponse);
+	return generateCodeFromDefinitions(endpointDefinitions, authOptions);
 }
 
 function buildEndpointDefinition(
@@ -147,9 +146,12 @@ function getResponseCodeAndType(
 
 function generateCodeFromDefinitions(
 	definitions: EndpointDefinition[],
-	wrapResponse: boolean,
+	authOptions: EncoreBetterAuthOptions,
 ): string {
-	let code = `import { api } from "encore.dev/api";\n`;
+	let code = `/**
+	 * WARNING: This file is generated automatically. Do not edit. use/create generator plugins to override.
+	 */\n`;
+	code += `import { api } from "encore.dev/api";\n`;
 	code += `import { auth } from './encore.service';\n\n`;
 
 	for (const def of definitions) {
@@ -163,12 +165,12 @@ function generateCodeFromDefinitions(
 		const { code: responseCode, responseType } = getResponseCodeAndType(
 			def.response,
 			def.name,
-			wrapResponse,
+			authOptions.wrapResponse,
 		);
 		// Add a single newline between params and response types if both exist
 		code += paramsCode && responseCode ? `${responseCode}\n` : responseCode;
 
-		const apiConfig = buildApiConfig(def);
+		const apiConfig = buildApiConfig(def, authOptions.basePath);
 		const adjustedParamsPart =
 			def.methods.includes("GET") &&
 			def.methods.length === 1 &&
@@ -207,10 +209,14 @@ function buildApiConfig({
 	path,
 	methods,
 	middleware,
-}: EndpointDefinition): string[] {
+}: EndpointDefinition, basePath?: string): string[] {
+	const fullPath = (basePath ? `${basePath}/${path}` : path).replace(
+		/\/\//g,
+		"/",
+	) // removes double slashs...
 	return [
 		`method: [${methods.map((m) => `"${m}"`).join(", ")}]`,
-		`path: "${path}"`,
+		`path: "${fullPath}"`,
 		`expose: true`,
 		middleware.length
 			? `tags: [${middleware.map((m) => `"${m}"`).join(", ")}]`

@@ -1,13 +1,20 @@
-import type { EndpointDefinition } from '../types';
+import {
+	getAllFields,
+	parseUserInput,
+	type FieldAttribute,
+} from "better-auth/db";
+import type { EndpointDefinition, FieldDefinition } from "../types";
+import type { BetterAuthOptions } from "better-auth";
 
-export function composePlugins(
-	...plugins: ((definitions: EndpointDefinition[]) => EndpointDefinition[])[]
-): (definitions: EndpointDefinition[]) => EndpointDefinition[] {
+export type GeneratorPlugin = (
+	definitions: EndpointDefinition[],
+) => EndpointDefinition[];
+
+export function composePlugins(...plugins: GeneratorPlugin[]): GeneratorPlugin {
 	return (definitions: EndpointDefinition[]) => {
 		return plugins.reduce((defs, plugin) => plugin(defs), definitions);
 	};
 }
-
 
 type RouteSelector = (
 	definition: EndpointDefinition,
@@ -107,4 +114,48 @@ function createSelectorFromPattern(
 
 	// Default to matching all routes
 	return () => true;
+}
+
+function fieldAttributeToFieldDefinition(
+	name: string,
+	attr: FieldAttribute,
+	action: "create" | "update" = "update",
+): FieldDefinition {
+	let type: string;
+	switch (attr.type) {
+		case "string":
+			type = "string";
+			break;
+		case "number":
+			type = "number";
+			break;
+		case "boolean":
+			type = "boolean";
+			break;
+		case "date":
+			type = "Date";
+			break;
+		case "string[]":
+			type = "string[]";
+			break;
+		case "number[]":
+			type = "number[]";
+			break;
+		default:
+			type = "any";
+	}
+	const isOptional =
+		action === "update" ? true : !attr.required && attr.input !== false;
+	return { name, type, optional: isOptional };
+}
+
+export function generateParamsFromOptions(
+	authOptions: BetterAuthOptions,
+	table: string,
+	action: "create" | "update" = "update",
+): FieldDefinition[] {
+	const schema = getAllFields(authOptions, table);
+	return Object.entries(schema)
+		.filter(([, attr]) => attr.input !== false)
+		.map(([name, attr]) => fieldAttributeToFieldDefinition(name, attr, action));
 }

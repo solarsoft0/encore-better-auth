@@ -1,11 +1,9 @@
-import type { AuthContext, BetterAuthOptions, GenericEndpointContext, HTTPMethod, MiddlewareContext, MiddlewareOptions } from "better-auth";
+import type { AuthContext, HTTPMethod, MiddlewareContext, MiddlewareOptions } from "better-auth";
 import type { APICallMeta } from "encore.dev";
-import { APIError, type Method } from 'encore.dev/api';
-import { getBaseURL } from './url';
+import { appMeta } from "encore.dev";
 
 export function getRequestFromAPICall(meta: APICallMeta): Request {
-    const url = new URL(meta.pathAndQuery, "http://localhost"); // Base URL can be replaced as needed
-
+    const url = new URL(meta.pathAndQuery, appMeta().apiBaseUrl); // Base URL can be replaced as needed
     // Create headers object
     const headers = new Headers();
     Object.entries(meta.headers).forEach(([key, value]) => {
