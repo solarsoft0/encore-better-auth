@@ -1,20 +1,23 @@
-import type {
-	AuthContext,
-	BetterAuthOptions,
-	Endpoint,
-	EndpointContext,
-	Middleware,
+import {
+	logger,
+	type AuthContext,
+	type BetterAuthOptions,
+	type Endpoint,
+	type EndpointContext,
+	type Middleware,
 } from "better-auth";
 
-import { logger } from "better-auth";
-import { APIError, originCheckMiddleware } from "better-auth/api";
+import {
+	APIError as BetterAuthAPIError,
+	originCheckMiddleware,
+} from "better-auth/api";
 import type { APICallMeta, RequestMeta } from "encore.dev";
-import type { MiddlewareRequest, Next } from "encore.dev/api";
+import type { HandlerResponse, MiddlewareRequest, Next } from "encore.dev/api";
 import { middleware } from "encore.dev/api";
-import log from "encore.dev/log";
 import { onRequestRateLimit } from "../api/rate-limiter";
 import type { EncoreBetterAuthOptions } from "../types";
 import { prepareRequestContext } from "../utils/request";
+import { convertAPIError } from "./error";
 
 export const createEncoreAPIHandler = async (
 	api: Endpoint,
@@ -95,7 +98,7 @@ export const createEncoreAPIHandler = async (
 };
 
 function handleError(e: unknown, ctx: AuthContext, options: BetterAuthOptions) {
-	if (e instanceof APIError && e.status === "FOUND") {
+	if (e instanceof BetterAuthAPIError && e.status === "FOUND") {
 		return;
 	}
 
@@ -132,7 +135,7 @@ function handleError(e: unknown, ctx: AuthContext, options: BetterAuthOptions) {
 			}
 		}
 
-		if (e instanceof APIError) {
+		if (e instanceof BetterAuthAPIError) {
 			if (e.status === "INTERNAL_SERVER_ERROR") {
 				ctx.logger.error(e.status, e);
 			}
@@ -150,7 +153,7 @@ function handleError(e: unknown, ctx: AuthContext, options: BetterAuthOptions) {
 }
 
 function createErrorResponse(error: any) {
-	if (error instanceof APIError) {
+	if (error instanceof BetterAuthAPIError) {
 		return {
 			status: error.status || "INTERNAL_SERVER_ERROR",
 			message: error.message,
@@ -214,7 +217,6 @@ export function createEncoreMiddlewares(
 						await mw(context);
 						// middleware may update context.
 						req.data.betterAuthRequestContext = context;
-						log.debug(context, "from middleware");
 						return next(req);
 					},
 				),
@@ -223,18 +225,46 @@ export function createEncoreMiddlewares(
 		middleware({ target: { expose: true } }, async (req, next) => {
 			const wrapResponse = options.wrapResponse;
 
-			const wrappedResponse = await next(req);
+			let wrappedResponse: HandlerResponse;
+
+			try {
+				wrappedResponse = await next(req);
+			} catch (error) {
+				if (
+					typeof error === "object" &&
+					error !== null &&
+					"status" in error &&
+					(error as any).status === "FOUND"
+				) {
+					console.log(error, "this is error object");
+					console.log(
+						req.data.betterAuthRequestContext,
+						req.data.betterAuthRequestContext.headers,
+						"this is betterAuthRequestContext and header",
+					);
+				}
+				throw convertAPIError(error);
+			}
+
 			const incomingPayload = wrappedResponse.payload;
 
 			const { content, headers } = extractPayload(
 				incomingPayload,
 				wrapResponse,
 			);
+
 			if (content === null) {
-				throw Error("invalid payload")
+				throw Error("invalid payload");
 			}
 
 			mergeHeaders(wrappedResponse, headers);
+
+			// for when content return APIError
+			if (content?.status === "FOUND" && content?.statusCode) {
+				wrappedResponse.status = content.statusCode;
+				wrappedResponse.payload = {};
+				return wrappedResponse;
+			}
 
 			wrappedResponse.payload = formatPayload(content, wrapResponse);
 
@@ -242,26 +272,40 @@ export function createEncoreMiddlewares(
 		}),
 	];
 }
+
 function extractPayload(
 	payload: any,
 	wrapResponse: boolean,
 ): { content: any; headers: Headers | null } {
+	// If payload is not an object (e.g., null, undefined, primitive), return null content
 	if (!payload || typeof payload !== "object") {
 		return { content: null, headers: null };
 	}
 
 	if (wrapResponse) {
-		// Expect { data: { response: ..., headers: ... } }
-		if (
-			!("data" in payload) ||
-			typeof payload.data !== "object" ||
-			!("response" in payload.data)
-		) {
+		// Expect { data: ... } where data can be an object or APIError instance
+		if (!("data" in payload)) {
 			return { content: null, headers: null };
 		}
+
+		const data = payload.data;
+
+		// Ensure data is an object (includes APIError instances)
+		if (typeof data !== "object" || data === null) {
+			return { content: null, headers: null };
+		}
+
+		// Case 1: data is an object with a response key
+		if ("response" in data) {
+			return {
+				content: data.response,
+				headers: data.headers || null,
+			};
+		}
+
 		return {
-			content: payload.data.response,
-			headers: payload.data.headers || null,
+			content: data, // data or APIError
+			headers: data.headers || null, // Headers from APIError
 		};
 	} else {
 		// Expect { response: ..., headers: ... }
@@ -274,19 +318,24 @@ function extractPayload(
 		};
 	}
 }
-function mergeHeaders(wrappedResponse: any, headers: Headers | null): void {
+
+function mergeHeaders(
+	wrappedResponse: HandlerResponse,
+	headers: Headers | null,
+): void {
 	if (!headers) return;
 
+	const responseHeader = wrappedResponse.header;
+
 	headers.forEach((value: string, key: string) => {
-		if (key === "set-cookie") {
-			console.log(value, key, "cookies needs attention");
-			// wrappedResponse.header.headers.append(key, value); // Uncomment for cookie handling
-		} else if (!wrappedResponse.header.has(key)) {
-			wrappedResponse.header.set(key, value);
+		const normalizedKey = key.toLowerCase(); // Normalize for case-insensitivity
+		if (normalizedKey === "set-cookie") {
+			responseHeader.add(key, value);
+		} else if (!(key in responseHeader.headers)) {
+			responseHeader.set(key, value);
 		}
 	});
 }
-
 function formatPayload(content: any, wrapResponse: boolean): any {
 	return wrapResponse ? { data: content } : content;
 }

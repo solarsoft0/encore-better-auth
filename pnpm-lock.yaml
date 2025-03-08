@@ -56,6 +56,9 @@ importers:
       better-auth:
         specifier: 1.2.1-beta.6
         version: 1.2.1-beta.6(encoding@0.1.13)(typescript@5.8.2)
+      better-call:
+        specifier: ^1.0.4
+        version: 1.0.4
       encore-better-auth:
         specifier: link:../../packages/encore-better-auth
         version: link:../../packages/encore-better-auth
@@ -904,6 +907,9 @@ packages:
 
   better-call@1.0.3:
     resolution: {integrity: sha512-DUKImKoDIy5UtCvQbHTg0wuBRse6gu1Yvznn7+1B3I5TeY8sclRPFce0HI+4WF2bcb+9PqmkET8nXZubrHQh9A==}
+
+  better-call@1.0.4:
+    resolution: {integrity: sha512-NdAihYdkS0IOz1mtz8mw1gWacCxR9r921U8YqB+VB6++rt8edMG13vVL16Y4TBL4XkjMK/DUewEsOOFkw9LJYQ==}
 
   binary-extensions@2.3.0:
     resolution: {integrity: sha512-Ceh+7ox5qe7LJuLHoY0feh3pHuUDHAcRUeyL2VYghZwfpkNIy/+8Ocg0a3UuSoYzavmylwuLWQOf3hl0jjMMIw==}
@@ -2499,6 +2505,13 @@ snapshots:
       - typescript
 
   better-call@1.0.3:
+    dependencies:
+      '@better-fetch/fetch': 1.1.15
+      rou3: 0.5.1
+      set-cookie-parser: 2.7.1
+      uncrypto: 0.1.3
+
+  better-call@1.0.4:
     dependencies:
       '@better-fetch/fetch': 1.1.15
       rou3: 0.5.1

@@ -16,6 +16,7 @@
     "dependencies": {
         "@prisma/client": "^5.22.0",
         "better-auth": "1.2.1-beta.6",
+        "better-call": "^1.0.4",
         "encore-better-auth": "link:../../packages/encore-better-auth",
         "encore.dev": "^1.46.6",
         "zod": "^3.24.2",
