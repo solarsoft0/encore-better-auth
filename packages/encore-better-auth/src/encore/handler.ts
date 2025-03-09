@@ -234,18 +234,12 @@ export function createEncoreMiddlewares(
 				throw convertAPIError(error);
 			}
 
-
-			console.log(wrappedResponse, "logged")
 			const incomingPayload = wrappedResponse.payload;
 
 			const { content, headers } = extractPayload(
 				incomingPayload,
 				wrapResponse,
 			);
-
-			if (content === null) {
-				throw Error("invalid payload");
-			}
 
 			mergeHeaders(wrappedResponse, headers);
 

@@ -57,7 +57,7 @@ export function encoreBetterAuth<O extends EncoreBetterAuthOptions>(
 			});
 		} else {
 			console.log(
-				`Routes file already exists and is not empty at: ${outputPath}`,
+				`Routes file already exists and is not empty at: ${outputPath}, manually clear file or delete to update.`,
 			);
 		}
 	}
