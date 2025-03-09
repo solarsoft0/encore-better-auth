@@ -19,6 +19,7 @@ import type { EncoreBetterAuthOptions } from "../types";
 import { prepareRequestContext } from "../utils/request";
 import { convertAPIError } from "./error";
 
+
 export const createEncoreAPIHandler = async (
 	api: Endpoint,
 	{
@@ -233,6 +234,8 @@ export function createEncoreMiddlewares(
 				throw convertAPIError(error);
 			}
 
+
+			console.log(wrappedResponse, "logged")
 			const incomingPayload = wrappedResponse.payload;
 
 			const { content, headers } = extractPayload(
@@ -317,7 +320,7 @@ function mergeHeaders(
 	headers.forEach((value: string, key: string) => {
 		const normalizedKey = key.toLowerCase(); // Normalize for case-insensitivity
 		if (normalizedKey === "set-cookie") {
-			responseHeader.add(key, value);
+			responseHeader.add("Set-Cookie", value);
 		} else if (!(key in responseHeader.headers)) {
 			responseHeader.set(key, value);
 		}
