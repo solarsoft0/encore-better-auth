@@ -54,8 +54,6 @@ export function convertAPIError(error: any): APIError {
 			return APIError.unauthenticated(message, cause).withDetails(details || {});
 		default:
 			// Fallback for unmapped status codes
-			return APIError.unknown(`Unhandled status: ${status}`, cause).withDetails(
-				details || {}
-			);
+			return error
 	}
 }

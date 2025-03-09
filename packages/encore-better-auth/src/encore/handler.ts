@@ -19,6 +19,7 @@ import type { EncoreBetterAuthOptions } from "../types";
 import { prepareRequestContext } from "../utils/request";
 import { convertAPIError } from "./error";
 
+
 export const createEncoreAPIHandler = async (
 	api: Endpoint,
 	{
@@ -230,19 +231,6 @@ export function createEncoreMiddlewares(
 			try {
 				wrappedResponse = await next(req);
 			} catch (error) {
-				if (
-					typeof error === "object" &&
-					error !== null &&
-					"status" in error &&
-					(error as any).status === "FOUND"
-				) {
-					console.log(error, "this is error object");
-					console.log(
-						req.data.betterAuthRequestContext,
-						req.data.betterAuthRequestContext.headers,
-						"this is betterAuthRequestContext and header",
-					);
-				}
 				throw convertAPIError(error);
 			}
 
@@ -252,10 +240,6 @@ export function createEncoreMiddlewares(
 				incomingPayload,
 				wrapResponse,
 			);
-
-			if (content === null) {
-				throw Error("invalid payload");
-			}
 
 			mergeHeaders(wrappedResponse, headers);
 
@@ -330,7 +314,7 @@ function mergeHeaders(
 	headers.forEach((value: string, key: string) => {
 		const normalizedKey = key.toLowerCase(); // Normalize for case-insensitivity
 		if (normalizedKey === "set-cookie") {
-			responseHeader.add(key, value);
+			responseHeader.add("Set-Cookie", value);
 		} else if (!(key in responseHeader.headers)) {
 			responseHeader.set(key, value);
 		}

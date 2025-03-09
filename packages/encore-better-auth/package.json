@@ -69,12 +69,12 @@
     "unbuild": "catalog:"
   },
   "dependencies": {
-    "better-auth": "1.2.1-beta.6",
+    "better-auth": "^1.2.3",
     "encore.dev": "^1.46.6",
     "zod": "^3.24.2"
   },
   "peerDependencies": {
-    "better-auth": "1.2.1-beta.6"
+    "better-auth": "^1.2.3"
   },
   "overrides": {
     "whatwg-url": "^14.0.0"

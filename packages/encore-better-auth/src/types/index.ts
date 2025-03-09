@@ -43,6 +43,8 @@ export type EncoreBetterAuthOptions = BetterAuthOptions & {
 		generateRoutes?: boolean;
 		generatorPlugins?: GeneratorPlugin[];
 		outputPath?: string; // Allows specifying where to save the routes file
+		projectRoot?: string; 
+		relativePath?: string;
 		currentRequest: () => RequestMeta | undefined; // function to geet currentRequest (this not available in encore.dev)
 	};
 
