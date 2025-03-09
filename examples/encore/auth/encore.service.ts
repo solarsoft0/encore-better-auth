@@ -8,10 +8,11 @@ import {
 } from "better-auth/plugins";
 import { encoreBetterAuth } from "encore-better-auth";
 import { currentRequest } from "encore.dev";
-import { APIError, Gateway } from "encore.dev/api";
+import { api, APIError, Gateway, Header } from "encore.dev/api";
 import { Service } from "encore.dev/service";
 import { prisma } from "./database";
 import { authHandler } from "encore.dev/auth";
+import * as encoreAuth from "~encore/auth";
 
 // ensure to export auth.
 export const auth = encoreBetterAuth({
@@ -44,7 +45,14 @@ export const auth = encoreBetterAuth({
 				timeWindow: 1000 * 60 * 60 * 24, // 1 day
 				maxRequests: 10, // 10 requests per day
 			},
-		})
+		}),
+	],
+
+	trustedOrigins: [
+		"http://127.0.0.1:4000",
+		"http://localhost:4000",
+		"http://127.0.0.1:3000",
+		"http://localhost:3000",
 	],
 	// socialProviders: {
 	// 	facebook: {
@@ -66,7 +74,9 @@ export default new Service("auth", {
 	middlewares: [...auth.middlewares],
 });
 
-interface AuthParams {}
+interface AuthParams {
+	cookie: Header<"Cookie">;
+}
 
 interface AuthData {
 	userID: string;
@@ -74,17 +84,22 @@ interface AuthData {
 	session: any;
 }
 
-export const handler = authHandler<AuthParams, AuthData>(async (_) => {
+export const handler = authHandler<AuthParams, AuthData>(async (authdata) => {
+	if (!authdata.cookie) {
+		throw APIError.unauthenticated("Cookie is not provided.");
+	}
 	try {
-		const session = await auth.routeHandlers.getSession();
-		const data = session.data;
-		if (!data) {
-			throw new Error();
+		const headers = new Headers();
+		headers.append('Cookie', authdata.cookie);
+		const sessionResponse = await auth.api.getSession({ headers });
+		const sessionData = sessionResponse;
+		if (!sessionData) {
+			throw APIError.unauthenticated("The session is invalid.");
 		}
 		return {
-			userID: data.user.id,
-			user: data.user,
-			session: data.session,
+			userID: sessionData.user.id,
+			user: sessionData.user,
+			session: sessionData.session,
 		};
 	} catch (error) {
 		throw APIError.unauthenticated("The session is invalid.");
@@ -92,3 +107,29 @@ export const handler = authHandler<AuthParams, AuthData>(async (_) => {
 });
 
 export const gateway = new Gateway({ authHandler: handler });
+
+interface MeResponse {
+	session: any;
+	user: any;
+}
+
+export const me = api(
+	{
+		method: ["GET"],
+		path: "/me",
+		expose: true,
+		auth: true,
+	},
+	async (): Promise<{ data: MeResponse }> => {
+		const authData = encoreAuth.getAuthData();
+		if (!authData) {
+			throw APIError.unauthenticated("Unauthenticated");
+		}
+		return {
+			data: {
+				session: authData.session,
+				user: authData.user,
+			},
+		};
+	},
+);

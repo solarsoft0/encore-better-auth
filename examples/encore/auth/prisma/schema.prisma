@@ -28,7 +28,8 @@ model User {
   image               String?
   createdAt           DateTime
   updatedAt           DateTime
-  username            String?
+  username            String
+  displayUsername     String
   phoneNumber         String?
   phoneNumberVerified Boolean?
   isAnonymous         Boolean?
