@@ -1,11 +1,5 @@
 import { prismaAdapter } from "better-auth/adapters/prisma";
-import {
-	anonymous,
-	apiKey,
-	magicLink,
-	phoneNumber,
-	username,
-} from "better-auth/plugins";
+import { apiKey, username } from "better-auth/plugins";
 import { encoreBetterAuth } from "encore-better-auth";
 import { currentRequest } from "encore.dev";
 import { api, APIError, Gateway, Header } from "encore.dev/api";
@@ -26,19 +20,6 @@ export const auth = encoreBetterAuth({
 	basePath: "/auth",
 	plugins: [
 		username(),
-		magicLink({
-			sendMagicLink: async ({ email, token, url }, request) => {
-				// send email to user
-			},
-		}),
-		phoneNumber({
-			sendOTP: ({ phoneNumber, code }, request) => {
-				// Implement sending OTP code via SMS
-			},
-		}),
-		anonymous({
-			emailDomainName: "example.com",
-		}),
 		apiKey({
 			rateLimit: {
 				enabled: true,
@@ -46,13 +27,6 @@ export const auth = encoreBetterAuth({
 				maxRequests: 10, // 10 requests per day
 			},
 		}),
-	],
-
-	trustedOrigins: [
-		"http://127.0.0.1:4000",
-		"http://localhost:4000",
-		"http://127.0.0.1:3000",
-		"http://localhost:3000",
 	],
 	// socialProviders: {
 	// 	facebook: {
@@ -85,25 +59,7 @@ interface AuthData {
 }
 
 export const handler = authHandler<AuthParams, AuthData>(async (authdata) => {
-	if (!authdata.cookie) {
-		throw APIError.unauthenticated("Cookie is not provided.");
-	}
-	try {
-		const headers = new Headers();
-		headers.append('Cookie', authdata.cookie);
-		const sessionResponse = await auth.api.getSession({ headers });
-		const sessionData = sessionResponse;
-		if (!sessionData) {
-			throw APIError.unauthenticated("The session is invalid.");
-		}
-		return {
-			userID: sessionData.user.id,
-			user: sessionData.user,
-			session: sessionData.session,
-		};
-	} catch (error) {
-		throw APIError.unauthenticated("The session is invalid.");
-	}
+	return auth.getValidatedSession(authdata.cookie);
 });
 
 export const gateway = new Gateway({ authHandler: handler });

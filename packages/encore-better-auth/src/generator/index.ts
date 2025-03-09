@@ -8,6 +8,7 @@ import type {
 	FieldDefinition,
 	TypeDefinition,
 } from "../types";
+import { composePlugins } from './plugin';
 
 interface GeneratorOptions {
 	plugins?: ((definitions: EndpointDefinition[]) => EndpointDefinition[])[];
@@ -321,37 +322,5 @@ function capitalize(str: string): string {
 	return str.charAt(0).toUpperCase() + str.slice(1);
 }
 
-export function composePlugins(
-	...plugins: ((definitions: EndpointDefinition[]) => EndpointDefinition[])[]
-): (definitions: EndpointDefinition[]) => EndpointDefinition[] {
-	return (definitions) =>
-		plugins.reduce((defs, plugin) => plugin(defs), definitions);
-}
 
-export function createPlugin(
-	options:
-		| {
-				name: string;
-				selector?: (def: EndpointDefinition) => boolean;
-				verbose?: boolean;
-		  }
-		| string,
-	transform: (
-		definition: EndpointDefinition,
-		index: number,
-		allDefinitions: EndpointDefinition[],
-	) => EndpointDefinition,
-): (definitions: EndpointDefinition[]) => EndpointDefinition[] {
-	const {
-		name,
-		selector = () => true,
-		verbose = true,
-	} = typeof options === "string" ? { name: options } : options;
-
-	return (definitions) => {
-		if (verbose) console.log(`Applying plugin: ${name}`);
-		return definitions.map((def, index, all) =>
-			selector(def) ? transform(def, index, all) : def,
-		);
-	};
-}
+export * from "./plugin";

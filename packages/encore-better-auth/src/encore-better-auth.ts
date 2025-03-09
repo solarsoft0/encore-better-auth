@@ -1,7 +1,7 @@
 import { betterAuth } from "better-auth";
 import { getEndpoints } from "better-auth/api";
 import fs from "fs";
-import { createEncoreHandlers } from "./encore";
+import { createEncoreHandlers, getValidatedSession } from "./encore";
 import { createEncoreMiddlewares } from "./encore/handler";
 import { generateEncoreRoutes } from "./generator";
 import {
@@ -11,6 +11,7 @@ import {
 } from "./route-generators";
 import type { EncoreBetterAuth, EncoreBetterAuthOptions } from "./types";
 import { resolveAuthRoutePath } from './utils/path';
+
 
 
 
@@ -65,6 +66,7 @@ export function encoreBetterAuth<O extends EncoreBetterAuthOptions>(
 	return {
 		routeHandlers: encoreHandlers,
 		middlewares: createEncoreMiddlewares(middlewares, $context, options),
+		getValidatedSession: getValidatedSession(apiEndpoints),
 		...auth,
 	};
 }

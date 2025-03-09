@@ -1,6 +1,7 @@
 import type { Endpoint } from "better-auth";
 import type { EncoreBetterAuthOptions, EncoreEndpointFn, EncoreRouteHandlers } from "../types";
 import { createEncoreAPIHandler } from "./handler";
+import { APIError } from 'encore.dev/api';
 export const createEncoreHandlers = <T extends Record<string, Endpoint<any>>>(
 	apiEndpoints: T,
 	options: EncoreBetterAuthOptions,
@@ -34,4 +35,35 @@ export const createEncoreHandlers = <T extends Record<string, Endpoint<any>>>(
 		},
 		{} as EncoreRouteHandlers<T, typeof options>,
 	);
+};
+
+
+
+
+export const getValidatedSession = <T extends Record<string, Endpoint<any>>>(
+	api: T,
+) => {
+	return async (cookie: string | undefined) => {
+		if (!cookie) {
+			throw APIError.unauthenticated("Cookie is not provided.");
+		}
+
+		try {
+			const headers = new Headers();
+			headers.append("Cookie", cookie);
+			const sessionResponse = await api.getSession({ headers });
+
+			if (!sessionResponse) {
+				throw APIError.unauthenticated("The session is invalid.");
+			}
+
+			return {
+				userID: sessionResponse.user.id,
+				user: sessionResponse.user,
+				session: sessionResponse.session,
+			};
+		} catch (error) {
+			throw APIError.unauthenticated("The session is invalid.");
+		}
+	};
 };
