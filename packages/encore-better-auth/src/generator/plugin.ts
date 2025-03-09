@@ -1,6 +1,5 @@
 import {
 	getAllFields,
-	parseUserInput,
 	type FieldAttribute,
 } from "better-auth/db";
 import type { EndpointDefinition, FieldDefinition } from "../types";
@@ -16,7 +15,7 @@ export function composePlugins(...plugins: GeneratorPlugin[]): GeneratorPlugin {
 	};
 }
 
-type RouteSelector = (
+export type RouteSelector = (
 	definition: EndpointDefinition,
 	index: number,
 	allDefinitions: EndpointDefinition[],
@@ -25,7 +24,7 @@ type RouteSelector = (
 /**
  * Plugin configuration options
  */
-interface PluginOptions {
+export interface PluginOptions {
 	/**
 	 * Name of the plugin for debugging purposes
 	 */
@@ -94,7 +93,7 @@ export function createPlugin(
 /**
  * Creates a selector function from various pattern types
  */
-function createSelectorFromPattern(
+export function createSelectorFromPattern(
 	pattern: string | RegExp | string[],
 ): RouteSelector {
 	// String pattern matches route name exactly

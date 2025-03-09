@@ -64,6 +64,11 @@ export type EncoreBetterAuth<O extends EncoreBetterAuthOptions> =
 	BetterAuthReturn<O> & {
 		routeHandlers: EncoreRouteHandlers<ApiEndpoints<O>, O>;
 		middlewares: Middleware[];
+		getValidatedSession: (cookie: string | undefined) => Promise<{
+			userID: string;
+			user: any;
+			session: any;
+		}>;
 	};
 
 export type EncoreRouteHandlers<

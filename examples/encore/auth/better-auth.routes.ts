@@ -82,8 +82,6 @@ interface SignUpEmailParams {
   password: string
   username?: string
   displayUsername?: string
-  phoneNumber?: string
-  isAnonymous?: boolean
 }
 interface SignUpEmailResponseUser {
   id: string
@@ -95,8 +93,6 @@ interface SignUpEmailResponseUser {
   updatedAt: Date
   username?: string
   displayUsername?: string
-  phoneNumber?: string
-  isAnonymous?: boolean
 }
 interface SignUpEmailResponse {
   token: null
@@ -251,8 +247,6 @@ interface UpdateUserParams {
   image?: string | null
   username?: string
   displayUsername?: string
-  phoneNumber?: string
-  isAnonymous?: boolean
 }
 interface UpdateUserResponse {
   status: boolean
@@ -427,144 +421,6 @@ export const signInUsername = api(
     async (params: SignInUsernameParams): Promise<{ data: SignInUsernameResponse }> => {
         // Using "as" to ignore response inconsistency from OpenAPI, to be resolved with PR https://github.com/better-auth/better-auth/pull/1699
         return await auth.routeHandlers.signInUsername(params) as { data: SignInUsernameResponse };
-    }
-);
-
-interface SignInMagicLinkParams {
-  email: string
-  name?: string
-  callbackURL?: string
-}
-interface SignInMagicLinkResponse {
-  status?: boolean
-}
-
-
-// Sign in with magic link
-export const signInMagicLink = api(
-    { method: ["POST"], path: "/auth/sign-in/magic-link", expose: true, tags: ["/sign-in/magic-link"] },
-    async (params: SignInMagicLinkParams): Promise<{ data: SignInMagicLinkResponse }> => {
-        // Using "as" to ignore response inconsistency from OpenAPI, to be resolved with PR https://github.com/better-auth/better-auth/pull/1699
-        return await auth.routeHandlers.signInMagicLink(params) as { data: SignInMagicLinkResponse };
-    }
-);
-
-interface MagicLinkVerifyParams {
-  token: string
-  callbackURL?: string
-}
-interface MagicLinkVerifyResponse {
-  session?: any
-  user?: any
-}
-
-
-// Verify magic link
-export const magicLinkVerify = api(
-    { method: ["GET"], path: "/auth/magic-link/verify", expose: true, tags: ["/magic-link/verify"] },
-    async (_: MagicLinkVerifyParams): Promise<{ data: MagicLinkVerifyResponse }> => {
-        // Using "as" to ignore response inconsistency from OpenAPI, to be resolved with PR https://github.com/better-auth/better-auth/pull/1699
-        return await auth.routeHandlers.magicLinkVerify() as { data: MagicLinkVerifyResponse };
-    }
-);
-
-interface SignInPhoneNumberParams {
-  phoneNumber: string
-  password: string
-  rememberMe?: boolean
-}
-interface SignInPhoneNumberResponse {
-  user?: any
-  session?: any
-}
-
-
-// Use this endpoint to sign in with phone number
-export const signInPhoneNumber = api(
-    { method: ["POST"], path: "/auth/sign-in/phone-number", expose: true, tags: ["/sign-in/phone-number"] },
-    async (params: SignInPhoneNumberParams): Promise<{ data: SignInPhoneNumberResponse }> => {
-        // Using "as" to ignore response inconsistency from OpenAPI, to be resolved with PR https://github.com/better-auth/better-auth/pull/1699
-        return await auth.routeHandlers.signInPhoneNumber(params) as { data: SignInPhoneNumberResponse };
-    }
-);
-
-interface SendPhoneNumberOTPParams {
-  phoneNumber: string
-}
-interface SendPhoneNumberOTPResponse {
-  message?: string
-}
-
-
-// Use this endpoint to send OTP to phone number
-export const sendPhoneNumberOTP = api(
-    { method: ["POST"], path: "/auth/phone-number/send-otp", expose: true, tags: ["/phone-number/send-otp"] },
-    async (params: SendPhoneNumberOTPParams): Promise<{ data: SendPhoneNumberOTPResponse }> => {
-        // Using "as" to ignore response inconsistency from OpenAPI, to be resolved with PR https://github.com/better-auth/better-auth/pull/1699
-        return await auth.routeHandlers.sendPhoneNumberOTP(params) as { data: SendPhoneNumberOTPResponse };
-    }
-);
-
-interface VerifyPhoneNumberParams {
-  phoneNumber: string
-  code: string
-  disableSession?: boolean
-  updatePhoneNumber?: boolean
-}
-interface VerifyPhoneNumberResponse {
-  user?: any
-  session?: any
-}
-
-
-// Use this endpoint to verify phone number
-export const verifyPhoneNumber = api(
-    { method: ["POST"], path: "/auth/phone-number/verify", expose: true, tags: ["/phone-number/verify"] },
-    async (params: VerifyPhoneNumberParams): Promise<{ data: VerifyPhoneNumberResponse }> => {
-        // Using "as" to ignore response inconsistency from OpenAPI, to be resolved with PR https://github.com/better-auth/better-auth/pull/1699
-        return await auth.routeHandlers.verifyPhoneNumber(params) as { data: VerifyPhoneNumberResponse };
-    }
-);
-
-interface ForgetPasswordPhoneNumberParams {
-  phoneNumber: string
-}
-
-// API endpoint
-export const forgetPasswordPhoneNumber = api(
-    { method: ["POST"], path: "/auth/phone-number/forget-password", expose: true, tags: ["/phone-number/forget-password"] },
-    async (params: ForgetPasswordPhoneNumberParams): Promise<{ data: any }> => {
-        // Using "as" to ignore response inconsistency from OpenAPI, to be resolved with PR https://github.com/better-auth/better-auth/pull/1699
-        return await auth.routeHandlers.forgetPasswordPhoneNumber(params) as { data: any };
-    }
-);
-
-interface ResetPasswordPhoneNumberParams {
-  otp: string
-  phoneNumber: string
-  newPassword: string
-}
-
-// API endpoint
-export const resetPasswordPhoneNumber = api(
-    { method: ["POST"], path: "/auth/phone-number/reset-password", expose: true, tags: ["/phone-number/reset-password"] },
-    async (params: ResetPasswordPhoneNumberParams): Promise<{ data: any }> => {
-        // Using "as" to ignore response inconsistency from OpenAPI, to be resolved with PR https://github.com/better-auth/better-auth/pull/1699
-        return await auth.routeHandlers.resetPasswordPhoneNumber(params) as { data: any };
-    }
-);
-
-interface SignInAnonymousResponse {
-  user?: any
-  session?: any
-}
-
-// Sign in anonymously
-export const signInAnonymous = api(
-    { method: ["POST"], path: "/auth/sign-in/anonymous", expose: true, tags: ["/sign-in/anonymous"] },
-    async (): Promise<{ data: SignInAnonymousResponse }> => {
-        // Using "as" to ignore response inconsistency from OpenAPI, to be resolved with PR https://github.com/better-auth/better-auth/pull/1699
-        return await auth.routeHandlers.signInAnonymous() as { data: SignInAnonymousResponse };
     }
 );
 

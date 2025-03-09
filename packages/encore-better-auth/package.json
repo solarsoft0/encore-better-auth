@@ -40,6 +40,16 @@
         "default": "./dist/api/index.cjs"
       }
     },
+      "./generator": {
+        "import": {
+          "types": "./dist/generator/index.d.ts",
+          "default": "./dist/generator/index.mjs"
+        },
+        "require": {
+          "types": "./dist/generator/index.d.cts",
+          "default": "./dist/generator/index.cjs"
+        }
+      },
     "./encore": {
       "import": {
         "types": "./dist/encore/index.d.ts",
