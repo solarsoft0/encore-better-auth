@@ -50,7 +50,7 @@ To configure your authentication service using `encore-better-auth`, follow thes
 
 1. **Import Required Modules:**
 
-   Begin by importing the necessary modules and dependencies:
+   Begin by importing the necessary modules and dependencies, you can use any database adapter, we would use Prisma here for demonstration.
 
    ```typescript
    import { prismaAdapter } from "better-auth/adapters/prisma";
@@ -77,13 +77,6 @@ To configure your authentication service using `encore-better-auth`, follow thes
      basePath: "/auth",
      plugins: [
        username(),
-       apiKey({
-         rateLimit: {
-           enabled: true,
-           timeWindow: 1000 * 60 * 60 * 24, // 1 day
-           maxRequests: 10, // 10 requests per day
-         },
-       }),
      ],
      generateRoutes: true, // Automatically generates Encore route files
      wrapResponse: true, // Required for Encore compatibility
@@ -98,57 +91,7 @@ To configure your authentication service using `encore-better-auth`, follow thes
    export default new Service("auth", {
      middlewares: [...auth.middlewares],
    });
-   ```
-
-By following these steps, you will have set up a robust authentication service integrated with Encore's architecture, leveraging the power of `better-auth` for secure and efficient user management.
-
-
-Ensure you preferred better-auth compactible database set up in your project, for this example we would use prisma. 
-
-Setup
-Configure Your Authentication Service
-Create an auth.ts file in your Encore service directory (e.g., services/auth/auth.ts) and set up encore-better-auth as shown below:
-
-``` typescript
-import { prismaAdapter } from "better-auth/adapters/prisma";
-import { apiKey, username } from "better-auth/plugins";
-import { encoreBetterAuth } from "encore-better-auth";
-import { currentRequest } from "encore.dev";
-import { Service } from "encore.dev/service";
-import { prisma } from "./database"; // Your Prisma client
-
-// Export the auth instance
-export const auth = encoreBetterAuth({
-  currentRequest: currentRequest,
-  database: prismaAdapter(prisma, {
-    provider: "sqlite", // Adjust to your database (e.g., "mysql", "postgresql")
-  }),
-  emailAndPassword: {
-    enabled: true,
-  },
-  basePath: "/auth",
-  plugins: [
-    username(),
-    apiKey({
-      rateLimit: {
-        enabled: true,
-        timeWindow: 1000 * 60 * 60 * 24, // 1 day
-        maxRequests: 10, // 10 requests per day
-      },
-    }),
-  ],
-  generateRoutes: true, // Automatically generates Encore route files
-  wrapResponse: true, // Required for Encore compatibility
-});
-
-
-// Define the service
-export default new Service("auth", {
-  middlewares: [...auth.middlewares],
-});
-
-```
-
+   `
 
 ## Set Up Authentication Handler
 
@@ -184,8 +127,8 @@ To integrate authentication into your Encore service, follow these steps to set 
    Use the `authHandler` to create a handler that validates the session using the provided cookie:
 
    ```typescript
-   export const handler = authHandler<AuthParams, AuthData>(async (authdata) => {
-     return auth.getValidatedSession(authdata.cookie);
+   export const handler = authHandler<AuthParams, AuthData>(async (authData) => {
+     return auth.getValidatedSession(authData.cookie);
    });
    ```
 
@@ -252,7 +195,7 @@ By following these steps, you will have successfully set up better-auth for Enco
 
 ## Route Generator Plugin
 
-The `encore-better-auth` library includes a route generation feature that automatically creates Encore-compatible route files for better-auth endpoints. This feature is controlled by the `generateRoutes` option and can be customized using generator plugins. Generator plugins help ensure that routes are updated even when new plugins that introduce additional data to query or body are activated.
+The `encore-better-auth` library includes a route generation feature that automatically creates an Encore routes file containing all routes for better-auth endpoints. This feature is controlled by the `generateRoutes` option and can be customized using generator plugins. Generator plugins help ensure that routes are updated even when new plugins that introduce additional data to query or body are activated.
 
 While we strive to support native cases, there may be scenarios where you need to customize the generated routes.
 
@@ -319,7 +262,15 @@ You could help continuing its development by:
 - [Suggest new features and report issues](https://github.com/solarsoft0/encore-better-auth/issues)
 
 ## Security
-If you discover a security vulnerability in Better Auth, please email us at security@better-auth.com. For issues related to Encore Better Auth, contact me on the Encore Discord with the username: solar.
+If you discover a security vulnerability in Better Auth, please email us at security@better-auth.com. For issues related to Encore Better Auth, please contact me on the Encore Discord with the username: solar.
 
+All security reports will be promptly addressed, and you will be credited accordingly for your contributions.
 
-All reports will be promptly addressed, and you'll be credited accordingly.
+## Acknowledgements
+
+This project would not exist without the contributions and support of the following amazing projects and teams:
+
+- The Better Auth team for creating and maintaining the core library.
+- The Encore team for their excellent TypeScript framework and comprehensive documentation.
+
+Your contributions and support are greatly appreciated!
