@@ -1,7 +1,6 @@
 import { betterAuth } from "better-auth";
 import { getEndpoints } from "better-auth/api";
 import fs from "fs";
-import path from "path";
 import { createEncoreHandlers } from "./encore";
 import { createEncoreMiddlewares } from "./encore/handler";
 import { generateEncoreRoutes } from "./generator";
@@ -11,8 +10,9 @@ import {
 	createUpdateUserPlugin,
 } from "./route-generators";
 import type { EncoreBetterAuth, EncoreBetterAuthOptions } from "./types";
+import { resolveAuthRoutePath } from './utils/path';
 
-const projectRoot = process.cwd();
+
 
 export function encoreBetterAuth<O extends EncoreBetterAuthOptions>(
 	options: O,
@@ -23,9 +23,11 @@ export function encoreBetterAuth<O extends EncoreBetterAuthOptions>(
 
 	const encoreHandlers = createEncoreHandlers(apiEndpoints, options);
 	if (options?.generateRoutes) {
-		const outputPath =
-			options.outputPath ??
-			path.join(projectRoot, "/better-auth.routes.ts");
+		const outputPath = resolveAuthRoutePath({
+			projectRoot: options.projectRoot,
+			relativePath: options.relativePath,
+		});
+			options.outputPath ?? outputPath;
 
 		let shouldGenerate = true;
 		try {

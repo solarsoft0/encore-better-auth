@@ -80,8 +80,6 @@ interface SignUpEmailParams {
   name: string
   email: string
   password: string
-  username?: string
-  displayUsername?: string
 }
 interface SignUpEmailResponseUser {
   id: string
@@ -91,8 +89,6 @@ interface SignUpEmailResponseUser {
   emailVerified: boolean
   createdAt: Date
   updatedAt: Date
-  username?: string
-  displayUsername?: string
 }
 interface SignUpEmailResponse {
   token: null
@@ -245,8 +241,6 @@ export const changePassword = api(
 interface UpdateUserParams {
   name?: string
   image?: string | null
-  username?: string
-  displayUsername?: string
 }
 interface UpdateUserResponse {
   status: boolean
@@ -401,26 +395,6 @@ export const unlinkAccount = api(
     async (params: UnlinkAccountParams): Promise<{ data: any }> => {
         // Using "as" to ignore response inconsistency from OpenAPI, to be resolved with PR https://github.com/better-auth/better-auth/pull/1699
         return await auth.routeHandlers.unlinkAccount(params) as { data: any };
-    }
-);
-
-interface SignInUsernameParams {
-  username: string
-  password: string
-  rememberMe?: boolean
-}
-interface SignInUsernameResponse {
-  user?: any
-  session?: any
-}
-
-
-// Sign in with username
-export const signInUsername = api(
-    { method: ["POST"], path: "/auth/sign-in/username", expose: true, tags: ["/sign-in/username"] },
-    async (params: SignInUsernameParams): Promise<{ data: SignInUsernameResponse }> => {
-        // Using "as" to ignore response inconsistency from OpenAPI, to be resolved with PR https://github.com/better-auth/better-auth/pull/1699
-        return await auth.routeHandlers.signInUsername(params) as { data: SignInUsernameResponse };
     }
 );
 
